@@ -95,7 +95,7 @@ static uint64_t gdt[3] = { 0, 0x00af9a000000ffff, 0x00cf92000000ffff };
 void
 thread_init (void) {
 	ASSERT (intr_get_level () == INTR_OFF);
-	// 플래그? 를 읽어 와서 on/off여부를 판단하고 off일 시 계속 진행함
+	// 인터럽트의 를 읽어 와서 on/off여부를 판단하고 off일 시 계속 진행함 (플래그 = 내리고, 올리고만 가능함. 즉 on/off 상태를 표시하기 위해 사용한다.)
 
 	/* Reload the temporal gdt for the kernel
 	 * This gdt does not include the user context.
@@ -110,6 +110,7 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+	// lock 상태를 초기화한다.
 	// ready_list, destruction_req를 초기화한다.
 
 	/* Set up a thread structure for the running thread. */
@@ -117,6 +118,7 @@ thread_init (void) {
 	init_thread (initial_thread, "main", PRI_DEFAULT);
 	initial_thread->status = THREAD_RUNNING;
 	initial_thread->tid = allocate_tid ();
+	// 쓰레드를 init한다. main을 넣어 단 한번만 작동함. 이후 앞으로 들어올 것들은 전부 running으로 가정한다. lock을 받을 수 있는지 여부에 따라 lock을 주거나 가져옴.
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -125,14 +127,22 @@ void
 thread_start (void) {
 	/* Create the idle thread. */
 	struct semaphore idle_started;
+	// 세마포어를 세는 구조체를 idle_started로 만들어줌
 	sema_init (&idle_started, 0);
+	// 여기서 down이 P이다. 다른 프로세스 못 들어오게 막음
+	// up이 V이다. 다른 프로세스 들어오게 한다.
+	// 즉, (아까 만든) idle_started 된 구조체에 0을 넣는다.
+	// 이후 기다리는 큐에 있는 waiting쓰레드에 대기열 추가
+
 	thread_create ("idle", PRI_MIN, idle, &idle_started);
+	// idle 상태로 커널 쓰레드를 만들어준다. 우선순위는 가장 낮음
 
 	/* Start preemptive thread scheduling. */
 	intr_enable ();
 
 	/* Wait for the idle thread to initialize idle_thread. */
 	sema_down (&idle_started);
+	// idle_thread를 기다린다.
 }
 
 /* Called by the timer interrupt handler at each timer tick.
@@ -140,20 +150,27 @@ thread_start (void) {
 void
 thread_tick (void) {
 	struct thread *t = thread_current ();
+	// running_thread로 만들고 그 포인터를 가져옴
 
 	/* Update statistics. */
 	if (t == idle_thread)
 		idle_ticks++;
+	// t가 idle thread면 idle(모작)쓰레드 ++
 #ifdef USERPROG
 	else if (t->pml4 != NULL)
 		user_ticks++;
+	// Page Map level 14 Null이 아닐 경우 user program의 tick을 세어주는 역할인 user_ticks ++
 #endif
 	else
 		kernel_ticks++;
+	// 그 외에는 커널의 타이머의 tick을 세어주는 역할
 
 	/* Enforce preemption. */
 	if (++thread_ticks >= TIME_SLICE)
 		intr_yield_on_return ();
+	// 위 영어는 선점을 시행한다는 뜻
+	// thread ticks가 time slice보다 크다면 TIME SLICE(4로 설정되어 있는데 4kb라서 이렇게 한 것 같다) 
+	// 외부 인터럽트에서 작업하고 있다면 true를 반환받는다.
 }
 
 /* Prints thread statistics. */
