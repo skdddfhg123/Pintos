@@ -95,6 +95,7 @@ static uint64_t gdt[3] = { 0, 0x00af9a000000ffff, 0x00cf92000000ffff };
 void
 thread_init (void) {
 	ASSERT (intr_get_level () == INTR_OFF);
+	// 플래그? 를 읽어 와서 on/off여부를 판단하고 off일 시 계속 진행함
 
 	/* Reload the temporal gdt for the kernel
 	 * This gdt does not include the user context.
@@ -109,6 +110,7 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+	// ready_list, destruction_req를 초기화한다.
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
