@@ -135,10 +135,13 @@ thread_start (void) {
 	// 이후 기다리는 큐에 있는 waiting쓰레드에 대기열 추가
 
 	thread_create ("idle", PRI_MIN, idle, &idle_started);
-	// idle 상태로 커널 쓰레드를 만들어준다. 우선순위는 가장 낮음
+	// 전달된 함수는 main처럼 작동함.
+	// 특정 시간에 정확히 하나의 쓰레드만 실행되고 나머지는 비활성 상태가 됨. 스케줄러는 다음에 실행할 쓰레드를 결정함.
+	// 만약 실행할 준비가 된 쓰레드가 없는 경우 idle로 구현된 특수 유후 쓰레드가 실행됨.
 
 	/* Start preemptive thread scheduling. */
 	intr_enable ();
+
 
 	/* Wait for the idle thread to initialize idle_thread. */
 	sema_down (&idle_started);
@@ -169,7 +172,7 @@ thread_tick (void) {
 	if (++thread_ticks >= TIME_SLICE)
 		intr_yield_on_return ();
 	// 위 영어는 선점을 시행한다는 뜻
-	// thread ticks가 time slice보다 크다면 TIME SLICE(4로 설정되어 있는데 4kb라서 이렇게 한 것 같다) 
+	// thread ticks가 time slice보다 크다면 TIME SLICE(4로 설정되어 있는데 4마이크로sec라서 이렇게 한 것 같다) 
 	// 외부 인터럽트에서 작업하고 있다면 true를 반환받는다.
 }
 
@@ -204,7 +207,7 @@ thread_create (const char *name, int priority,
 	ASSERT (function != NULL);
 
 	/* Allocate thread. */
-	t = palloc_get_page (PAL_ZERO);
+	t = palloc_get_page (PAL_ZERO); //페이지 0초기화
 	if (t == NULL)
 		return TID_ERROR;
 
@@ -240,7 +243,7 @@ thread_block (void) {
 	ASSERT (!intr_context ());
 	ASSERT (intr_get_level () == INTR_OFF);
 	thread_current ()->status = THREAD_BLOCKED;
-	schedule ();
+	schedule (); //다음꺼
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -308,12 +311,12 @@ thread_exit (void) {
 	   We will be destroyed during the call to schedule_tail(). */
 	intr_disable ();
 	do_schedule (THREAD_DYING);
-	NOT_REACHED ();
-}
+	NOT_REACHED (); //도달하면안되나?
+} // 싹 다 빼서 ?
 
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
-void
+void 
 thread_yield (void) {
 	struct thread *curr = thread_current ();
 	enum intr_level old_level;
@@ -323,9 +326,9 @@ thread_yield (void) {
 	old_level = intr_disable ();
 	if (curr != idle_thread)
 		list_push_back (&ready_list, &curr->elem);
-	do_schedule (THREAD_READY);
+	do_schedule (THREAD_READY); 
 	intr_set_level (old_level);
-}
+}//디버깅?
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
@@ -444,7 +447,7 @@ next_thread_to_run (void) {
 }
 
 /* Use iretq to launch the thread */
-void
+void 
 do_iret (struct intr_frame *tf) {
 	__asm __volatile(
 			"movq %0, %%rsp\n"
