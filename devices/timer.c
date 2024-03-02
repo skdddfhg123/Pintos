@@ -100,7 +100,6 @@ timer_sleep (int64_t ticks) {
 		// thread_yield ();
 		// 
 		old_level = intr_disable ();
-		thread_block();
 		intr_set_level(old_level);
 }
 

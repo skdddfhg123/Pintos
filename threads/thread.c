@@ -28,6 +28,9 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+//추가
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -268,15 +271,25 @@ thread_unblock (struct thread *t) {
 	intr_set_level (old_level);
 }
 
-void thread_sleep(int64_t ticks){
-	/* 'blocked' 이랑, sleep queue에 들어가는 게 중요*/
-	/* if the current hread is not idle thread,
+/* 'blocked' 이랑, sleep queue에 들어가는 게 중요!
+if the current hread is not idle thread,
 	change the state of the caller thread to BLOCKED,
 	store the local tick to wak up,
 	update the global tick if nessary,
-	and call schedule() */
-	/* when you manipulate thread list, disable interrupt!*/
+	and call schedule()
+	when you manipulate thread list,
+	disable interrupt!*/
+void
+thread_sleep(int64_t ticks){
+	
+	struct thread *curr = thread_current ();
+	enum intr_level old_level;
 
+	old_level = intr_disable ();
+	if (curr != idle_thread)
+		thread_block();
+		list_push_back(&sleep_list, &curr->elem);
+	intr_set_level (old_level);
 }
 
 /* Returns the name of the running thread. */
