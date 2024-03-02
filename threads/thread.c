@@ -110,6 +110,7 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+
 	// lock 상태를 초기화한다.
 	// ready_list, destruction_req를 초기화한다.
 
@@ -235,13 +236,13 @@ thread_create (const char *name, int priority,
 /* Puts the current thread to sleep.  It will not be scheduled
    again until awoken by thread_unblock().
 
-   This function must be called with interrupts turned off.  It
-   is usually a better idea to use one of the synchronization
+   This function must be called with interrupts turned off.  It is usually a better idea to use one of the synchronization
    primitives in synch.h. */
 void
 thread_block (void) {
 	ASSERT (!intr_context ());
 	ASSERT (intr_get_level () == INTR_OFF);
+
 	thread_current ()->status = THREAD_BLOCKED;
 	schedule (); //다음꺼
 }
@@ -265,6 +266,17 @@ thread_unblock (struct thread *t) {
 	list_push_back (&ready_list, &t->elem);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
+}
+
+void thread_sleep(int64_t ticks){
+	/* 'blocked' 이랑, sleep queue에 들어가는 게 중요*/
+	/* if the current hread is not idle thread,
+	change the state of the caller thread to BLOCKED,
+	store the local tick to wak up,
+	update the global tick if nessary,
+	and call schedule() */
+	/* when you manipulate thread list, disable interrupt!*/
+
 }
 
 /* Returns the name of the running thread. */
@@ -330,10 +342,12 @@ thread_yield (void) {
 	intr_set_level (old_level);
 }//디버깅?
 
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+	
 }
 
 /* Returns the current thread's priority. */
