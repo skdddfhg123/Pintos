@@ -113,6 +113,7 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+	list_init (&sleep_list);
 
 	// lock 상태를 초기화한다.
 	// ready_list, destruction_req를 초기화한다.
@@ -365,7 +366,7 @@ thread_wakeup(int64_t ticks){ // 여기서 받는 tick이 tick + timer_ticks합
 	while (e != list_end(&sleep_list)) {
 		struct thread *t = list_entry(e, struct thread, elem);
 
-		if (t->wakeup_tick <= ticks) {
+		if (ticks >= t->wakeup_tick) {
 			e = list_remove(e);
 			thread_unblock(t); // 여기서 readylist 넣고 status까지 바꿔줌
 		} else {
