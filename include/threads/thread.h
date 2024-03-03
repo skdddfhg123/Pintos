@@ -87,10 +87,11 @@ typedef int tid_t;
  * blocked state is on a semaphore wait list. */
 struct thread {
 	/* Owned by thread.c. */
-	tid_t tid;                          /* Thread identifier. */
-	enum thread_status status;          /* Thread state. */
-	char name[16];                      /* Name (for debugging purposes). */
-	int priority;                       /* Priority. */
+	tid_t 				tid;                          /* Thread identifier. */
+	int64_t				ticks;
+	int 				priority;                       /* Priority. */
+	char	 			name[16];                      /* Name (for debugging purposes). */
+	enum thread_status	status;          /* Thread state. */
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
@@ -103,6 +104,7 @@ struct thread {
 	/* Table for whole virtual memory owned by thread. */
 	struct supplemental_page_table spt;
 #endif
+
 
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
@@ -142,5 +144,8 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 void do_iret (struct intr_frame *tf);
+
+void thread_sleep(int64_t ticks);
+void thread_awake(int64_t ticks);
 
 #endif /* threads/thread.h */
