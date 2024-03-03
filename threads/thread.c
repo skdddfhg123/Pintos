@@ -27,9 +27,9 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
-
-//추가
+// static struct list sleep_list;
 static struct list sleep_list;
+int64_t next_tick_to_awake = INT64_MAX;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -271,27 +271,6 @@ thread_unblock (struct thread *t) {
 	intr_set_level (old_level);
 }
 
-/* 'blocked' 이랑, sleep queue에 들어가는 게 중요!
-if the current hread is not idle thread,
-	change the state of the caller thread to BLOCKED,
-	store the local tick to wak up,
-	update the global tick if nessary,
-	and call schedule()
-	when you manipulate thread list,
-	disable interrupt!*/
-void
-thread_sleep(int64_t ticks){
-	
-	struct thread *curr = thread_current ();
-	enum intr_level old_level;
-
-	old_level = intr_disable ();
-	if (curr != idle_thread)
-		thread_block();
-		list_push_back(&sleep_list, &curr->elem);
-	intr_set_level (old_level);
-}
-
 /* Returns the name of the running thread. */
 const char *
 thread_name (void) {
@@ -355,6 +334,50 @@ thread_yield (void) {
 	intr_set_level (old_level);
 }//디버깅?
 
+/* 'blocked' 이랑, sleep queue에 들어가는 게 중요!
+if the current hread is not idle thread,
+	change the state of the caller thread to BLOCKED,
+	store the local tick to wake up,
+	update the global tick if nessary,
+	and call schedule()
+	when you manipulate thread list,
+	disable interrupt!*/
+void
+thread_sleep(int64_t ticks){
+	
+	struct thread *curr = thread_current ();
+	enum intr_level old_level;
+	ASSERT (!intr_context ());
+	old_level = intr_disable ();
+	
+	if (curr != idle_thread)
+		list_push_back(&sleep_list, &curr->elem);
+	curr -> wakeup_tick = ticks; // wakeup할 시간을 설정함
+
+	thread_block(); // block시킴
+	intr_set_level (old_level);
+}
+
+void
+thread_wakeup(int64_t ticks){ // 여기서 받는 tick이 tick + timer_ticks합
+	struct list_elem *e = list_begin(&sleep_list);
+
+	while (e != list_end(&sleep_list)) {
+		struct thread *t = list_entry(e, struct thread, elem);
+
+		if (t->wakeup_tick <= ticks) {
+			e = list_remove(e);
+			thread_unblock(t); // 여기서 readylist 넣고 status까지 바꿔줌
+		} else {
+			e = list_next(e);
+		}
+	}
+}
+
+// void
+// minimum_tick(int64_t ticks){
+// 	minimum_tick = ticks;
+// }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void

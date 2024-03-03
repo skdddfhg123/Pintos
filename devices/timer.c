@@ -90,25 +90,19 @@ timer_elapsed (int64_t then) {
 /* Suspends execution for approximately TICKS timer ticks. */
 void
 timer_sleep (int64_t ticks) {
-	int64_t start = timer_ticks ();
 	enum intr_level old_level;
 	ASSERT (intr_get_level () == INTR_ON);
 
-	thread_current() -> tick = ticks;
+	// thread_current() -> tick = ticks;
 
-	while (timer_elapsed (start) < ticks)
+	// while (timer_elapsed (start) < ticks)
 		// thread_yield ();
-		// 
-		old_level = intr_disable ();
-		intr_set_level(old_level);
+
+	// if (timer_elapsed (timer_ticks ()) < ticks)
+	// 재우기 전에 현재 tick을 저장해놓고, 그 tick이 지나면 깨우는 방식을 쓸거다.
+	// GPT : thread_sleep(timer_ticks() + ticks)는 시스템이 시작된 이후로부터 ticks만큼의 시간이 경과할 때까지 스레드를 대기시키는 것입니다.
+	thread_sleep(timer_ticks () + ticks);
 }
-
-// 추가
-timer_wakeup (int64_t ticks){
-
-}
-
-
 
 /* Suspends execution for approximately MS milliseconds. */
 void
@@ -134,16 +128,20 @@ timer_print_stats (void) {
 	printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
 
-/* Timer interrupt handler. */
+/* = sleep 된 쓰레드를 깨워주는 함수. 얘 없으면 wakeup자체가 안됨.
+Timer interrupt handler. 
+it must determine threads to wake up everytime when timer interrupt occurs
+For the threads to wake up, remove them from the sleep queue and insert it
+to the ready list. (Don't forget to change the state of the thread from
+sleep to ready)*/
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
+
 	ticks++;
-	thread_tick ();
-	/* code to add :
-	check sleep list and the global tick.
-	find and threads to wake up,
-	move them to the ready list if necessary.
-	update the global tick*/
+	thread_tick (); // tick 흐를때마다 인터럽트 부르는함수
+	// if (ticks >= 0) {
+	thread_wakeup(ticks); // tick마다 깨울건데, 나중에는 min값으로 더 유용하게 깨우는 걸 구현해야 할 것 같다
+	// }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

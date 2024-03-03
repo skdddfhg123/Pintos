@@ -9,7 +9,6 @@
 #include "vm/vm.h"
 #endif
 
-
 /* States in a thread's life cycle. */
 enum thread_status {
 	THREAD_RUNNING,     /* Running thread. */
@@ -95,7 +94,7 @@ struct thread {
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
-	int tick;
+	int64_t wakeup_tick; 			  /* Wake up tick */
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -134,6 +133,10 @@ const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
+
+void thread_sleep(int64_t ticks);
+void thread_wakeup(int64_t ticks);
+// void minimum_tick();
 
 int thread_get_priority (void);
 void thread_set_priority (int);
