@@ -353,7 +353,7 @@ thread_sleep(int64_t ticks){
 	
 	curr -> wakeup_tick = ticks; // wakeup할 시간을 설정함
 	if (curr != idle_thread)
-		list_insert_ordered(&sleep_list, &curr->elem);
+		list_push_back(&sleep_list, &curr->elem);
 
 	thread_block(); // block시킴
 	intr_set_level (old_level);

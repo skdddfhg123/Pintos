@@ -136,7 +136,7 @@ void thread_yield (void);
 
 void thread_sleep(int64_t ticks);
 void thread_wakeup(int64_t ticks);
-// void minimum_tick();
+void minimum();
 
 int thread_get_priority (void);
 void thread_set_priority (int);
