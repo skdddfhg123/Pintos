@@ -29,7 +29,7 @@
 static struct list ready_list;
 // static struct list sleep_list;
 static struct list sleep_list;
-int64_t next_tick_to_awake = INT64_MAX;
+int64_t Minimum = INT64_MAX;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -212,7 +212,7 @@ thread_create (const char *name, int priority,
 	ASSERT (function != NULL);
 
 	/* Allocate thread. */
-	t = palloc_get_page (PAL_ZERO); //페이지 0초기화
+	t = palloc_get_page (PAL_ZERO); //페이지 초기화
 	if (t == NULL)
 		return TID_ERROR;
 
@@ -262,12 +262,16 @@ thread_block (void) {
 void
 thread_unblock (struct thread *t) {
 	enum intr_level old_level;
+	
 
 	ASSERT (is_thread (t));
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	// list_push_back (&ready_list, &t->elem);
+	
+	int64_t cmp_priority = t -> priority;
+	list_insert_ordered(&ready_list, &t->elem, cmp_priority, NULL);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -373,12 +377,20 @@ thread_wakeup(int64_t ticks){ // 여기서 받는 tick이 tick + timer_ticks합
 			e = list_next(e);
 		}
 	}
+	minimum_save(ticks);
 }
 
-// void
-// minimum_tick(int64_t ticks){
-// 	minimum_tick = ticks;
-// }
+void
+minimum_save(int64_t ticks){
+	if (Minimum > ticks){
+		Minimum = ticks;
+	}
+}
+
+int64_t
+minimum_get(void){
+	return Minimum;
+}
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
