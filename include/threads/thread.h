@@ -139,9 +139,10 @@ void thread_sleep(int64_t ticks);
 /* 추가한 것들 - blocked > ready */
 void thread_wakeup(int64_t ticks);
 /* 추가한 것들 - tick의 최소값을 저장 */
-void minimum_save(int64_t ticks);
+void minimum_set(int64_t ticks);
 /* 추가한 것들 - 저장해 놓은 tick의 최소값을 반환 */
 int64_t minimum_get(void);
+/* 추가한 것들 - 최대값을 통해 비교 후 최소값을 받음 */
 
 int thread_get_priority (void);
 void thread_set_priority (int);

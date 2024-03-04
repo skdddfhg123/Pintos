@@ -29,7 +29,6 @@
 static struct list ready_list;
 // static struct list sleep_list;
 static struct list sleep_list;
-int64_t Minimum = INT64_MAX;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -114,6 +113,7 @@ thread_init (void) {
 	list_init (&ready_list);
 	list_init (&destruction_req);
 	list_init (&sleep_list);
+	int64_t Minimum_ticks;
 
 	// lock 상태를 초기화한다.
 	// ready_list, destruction_req를 초기화한다.
@@ -271,7 +271,8 @@ thread_unblock (struct thread *t) {
 	// list_push_back (&ready_list, &t->elem);
 
 	int64_t cmp_priority = t -> priority;
-	list_insert_ordered(&ready_list, &t->elem, cmp_priority, NULL);
+	// list_insert_ordered(&ready_list, &t->elem, cmp_priority, NULL);
+	list_push_back(&ready_list , &t->elem);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -334,7 +335,8 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_insert_ordered (&ready_list, &curr->elem, curr->priority, NULL);
+		// list_insert_ordered (&ready_list, &curr->elem, curr->priority, NULL);
+		list_push_back(&ready_list, &curr -> elem);
 	do_schedule (THREAD_READY); 
 	intr_set_level (old_level);
 }//디버깅?
@@ -360,6 +362,8 @@ thread_sleep(int64_t ticks){
 		list_push_back(&sleep_list, &curr->elem);
 
 	thread_block(); // block시킴
+	minimum_set(ticks);
+
 	intr_set_level (old_level);
 }
 
@@ -375,21 +379,26 @@ thread_wakeup(int64_t ticks){ // 여기서 받는 tick이 tick + timer_ticks합
 			thread_unblock(t); // 여기서 readylist 넣고 status까지 바꿔줌
 		} else {
 			e = list_next(e);
+			minimum_set(t->wakeup_tick);
 		}
 	}
-	minimum_save(ticks);
 }
 
+int64_t Minimum_ticks = 0;
 void
-minimum_save(int64_t ticks){
-	if (Minimum > ticks){
-		Minimum = ticks;
+minimum_set(int64_t ticks){
+	if (Minimum_ticks == 0){
+		Minimum_ticks = ticks;
+	}
+
+	if (Minimum_ticks > ticks){
+		Minimum_ticks = ticks;
 	}
 }
 
 int64_t
 minimum_get(void){
-	return Minimum;
+	return Minimum_ticks;
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
