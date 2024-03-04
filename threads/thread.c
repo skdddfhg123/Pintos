@@ -604,6 +604,8 @@ void thread_sleep(int64_t ticks) {
 	enum	intr_level	old_level;
 	struct	thread		*cur = thread_current();
 
+	ASSERT(cur != idle_thread);
+
 	old_level = intr_disable();
 	cur->ticks = ticks;
 
@@ -614,15 +616,18 @@ void thread_sleep(int64_t ticks) {
 }
 
 void thread_awake(int64_t ticks) {
-  struct list_elem *end = list_begin(&sleep_list);
+	enum intr_level old_level;
+	struct thread *t = list_pop_front(&sleep_list);
 
-  while (end != list_end (&sleep_list)){
-    struct thread *t = list_entry (end, struct thread, elem);
-    if (t->ticks <= ticks){
-      end = list_remove (end);
-      thread_unblock (t);
-    }
-    else 
-      end = list_next (end);
-  }
+	old_level=intr_disable();
+	if (timer_elapsed(t->ticks) > 0) {
+		t->status = THREAD_READY;
+		list_push_back(&ready_list, &t->elem);
+		schedule();
+		intr_set_level(old_level);
+	}
+	else {
+		list_push_back(&sleep_list, &t->elem);
+		intr_set_level(old_level);
+	}
 }
