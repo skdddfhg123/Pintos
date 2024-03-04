@@ -87,14 +87,14 @@ typedef int tid_t;
  * blocked state is on a semaphore wait list. */
 struct thread {
 	/* Owned by thread.c. */
-	tid_t 				tid;                          /* Thread identifier. */
-	int64_t				ticks;
-	int 				priority;                       /* Priority. */
-	char	 			name[16];                      /* Name (for debugging purposes). */
+	tid_t 				tid;             /* Thread identifier. */
+	int64_t				ticks;           /* Awake ticks */
+	int 				priority;        /* Priority. */
+	char	 			name[16];        /* Name (for debugging purposes). */
+	unsigned			magic;           /* Detects stack overflow. */
 	enum thread_status	status;          /* Thread state. */
-
-	/* Shared between thread.c and synch.c. */
-	struct list_elem elem;              /* List element. */
+	struct list_elem	elem;            /* List element. */
+	struct intr_frame	tf;              /* Information for switching */
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -104,48 +104,48 @@ struct thread {
 	/* Table for whole virtual memory owned by thread. */
 	struct supplemental_page_table spt;
 #endif
-
-
-	/* Owned by thread.c. */
-	struct intr_frame tf;               /* Information for switching */
-	unsigned magic;                     /* Detects stack overflow. */
 };
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
-extern bool thread_mlfqs;
+extern bool	thread_mlfqs;
 
-void thread_init (void);
-void thread_start (void);
+void			thread_init (void);
+void			thread_start (void);
 
-void thread_tick (void);
-void thread_print_stats (void);
+void			thread_tick (void);
+void			thread_print_stats (void);
 
-typedef void thread_func (void *aux);
-tid_t thread_create (const char *name, int priority, thread_func *, void *);
+typedef void	thread_func (void *aux);
+tid_t			thread_create (const char *name, int priority, thread_func *, void *);
 
-void thread_block (void);
-void thread_unblock (struct thread *);
+void			thread_block (void);
+void			thread_unblock (struct thread *);
 
-struct thread *thread_current (void);
-tid_t thread_tid (void);
-const char *thread_name (void);
+struct			thread *thread_current (void);
+tid_t			thread_tid (void);
+const			char *thread_name (void);
 
-void thread_exit (void) NO_RETURN;
-void thread_yield (void);
+void			thread_exit (void) NO_RETURN;
+void			thread_yield (void);
 
-int thread_get_priority (void);
-void thread_set_priority (int);
+int				thread_get_priority (void);
+void			thread_set_priority (int);
 
-int thread_get_nice (void);
-void thread_set_nice (int);
-int thread_get_recent_cpu (void);
-int thread_get_load_avg (void);
+int				thread_get_nice (void);
+void			thread_set_nice (int);
+int				thread_get_recent_cpu (void);
+int				thread_get_load_avg (void);
 
-void do_iret (struct intr_frame *tf);
+void			do_iret (struct intr_frame *tf);
 
-void thread_sleep(int64_t ticks);
-void thread_awake(int64_t ticks);
+void			thread_sleep(int64_t ticks);
+void			thread_awake(int64_t ticks);
+
+void			set_minimum_ticks(int64_t ticks);
+int64_t			get_minimum_ticks(void);
+
+bool			cmp_priority(struct list_elem *a, struct list_elem *b, void *aux);
 
 #endif /* threads/thread.h */
