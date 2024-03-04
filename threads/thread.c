@@ -52,6 +52,8 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 
+static int64_t minimum_ticks;
+
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
@@ -114,6 +116,8 @@ thread_init (void) {
 	list_init (&destruction_req);
 
 	list_init (&sleep_list);
+
+	// minimum_ticks = get_global_ticks();
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
@@ -609,6 +613,10 @@ void thread_sleep(int64_t ticks) {
 	old_level = intr_disable();
 	cur->ticks = ticks;
 
+	if (minimum_ticks == 0)
+		minimum_ticks = ticks;
+	set_minimum_ticks(ticks);
+
 	list_push_back(&sleep_list, &cur->elem);
 	thread_block();
 
@@ -617,17 +625,33 @@ void thread_sleep(int64_t ticks) {
 
 void thread_awake(int64_t ticks) {
 	enum intr_level old_level;
-	struct thread *t = list_pop_front(&sleep_list);
+	struct list_elem *end = list_begin(&sleep_list);
+
+	minimum_ticks = 0;
 
 	old_level=intr_disable();
-	if (timer_elapsed(t->ticks) > 0) {
-		t->status = THREAD_READY;
-		list_push_back(&ready_list, &t->elem);
-		schedule();
-		intr_set_level(old_level);
+	while (end != list_end (&sleep_list)){
+		struct thread *t = list_entry (end, struct thread, elem);
+		if (t->ticks <= ticks){
+			end = list_remove (end);
+			thread_unblock (t);
+			intr_set_level(old_level);
+		}
+		else {
+			end = list_next (end);
+			if (minimum_ticks == 0)
+				minimum_ticks = t->ticks;
+			set_minimum_ticks(t->ticks);
+			intr_set_level(old_level);
+		}
 	}
-	else {
-		list_push_back(&sleep_list, &t->elem);
-		intr_set_level(old_level);
-	}
+}
+
+void set_minimum_ticks(int64_t ticks) {
+	if (minimum_ticks > ticks)
+		minimum_ticks = ticks;
+}
+
+int64_t get_minimum_ticks(void) {
+	return minimum_ticks;
 }
