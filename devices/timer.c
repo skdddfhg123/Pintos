@@ -139,9 +139,9 @@ timer_interrupt (struct intr_frame *args UNUSED) {
 
 	ticks++;
 	thread_tick (); // tick 흐를때마다 인터럽트 부르는함수
-	// if (ticks >= 0) {
-	thread_wakeup(ticks); // tick마다 깨울건데, 나중에는 min값으로 더 유용하게 깨우는 걸 구현해야 할 것 같다
-	// }
+	// if (ticks >= 0)
+	if (ticks >= minimum_get())
+		thread_wakeup(ticks);
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
