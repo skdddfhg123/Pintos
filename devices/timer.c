@@ -93,8 +93,17 @@ timer_sleep (int64_t ticks) {
 	int64_t start = timer_ticks ();
 
 	ASSERT (intr_get_level () == INTR_ON);
+	/* busy_wating mechanism /////////////////////////////////////HTH016 timer_sleep DEFAULT/////////////////////////////////
 	while (timer_elapsed (start) < ticks)
-		thread_yield ();
+		thread_yield (); 
+		*/
+
+	/* sleep/wake mechanism *//////////////////////////////////HTH016 timer_sleep REVISED//////////////////////////////////////////
+	if(timer_elapsed(start) < ticks) 
+	{
+		thread_sleep(timer_ticks() + ticks);
+		// thread_sleep(start + ticks);
+	}
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -121,11 +130,23 @@ timer_print_stats (void) {
 	printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
 
-/* Timer interrupt handler. */
+/* Timer interrupt handler. *////////////////////////HTH016 timer_interrupt REVISED : ADD CODE SEARCHING WAIT LIST //////////////////////
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick ();
+
+	/* code to add:
+	check sleep list and the global tick.
+	find any threads to wake up,
+	move them to the ready list if necessary.
+	update the global tick */
+	/* At every tick, check whether some thread must wake up from sleep queue and call wake up function */
+
+	int64_t min_sleep_tick = get_min_sleep_tick();
+	if (ticks >= min_sleep_tick) {
+	thread_awake(ticks);
+	}
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

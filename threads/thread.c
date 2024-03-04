@@ -28,6 +28,9 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+/* List of processess in THREAD_BLOCKED state *///////////////////HTH016/////////////
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -48,6 +51,7 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
+static unsigned min_sleep_ticks;	/* minimum value of local tick of the threads *////////////HTH016 ADD min_sleep_ticks///////
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -108,6 +112,8 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
+	////////////////////////////////////////////////HTH016 ADD sleep_list //////////
+	list_init (&sleep_list);
 	list_init (&destruction_req);
 
 	/* Set up a thread structure for the running thread. */
@@ -115,6 +121,10 @@ thread_init (void) {
 	init_thread (initial_thread, "main", PRI_DEFAULT);
 	initial_thread->status = THREAD_RUNNING;
 	initial_thread->tid = allocate_tid ();
+
+	///////////////////////HTH016 SET min_sleep_ticks TO LARGE CONSTANT //////////////////
+	min_sleep_ticks = INT64_MAX;
+
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -307,6 +317,55 @@ thread_yield (void) {
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
+
+//////////////////////////HTH016 ADD thread_sleep AND thread_awake TO COMPLETE THREADS LIFE CYCLE////////
+void thread_sleep(int64_t ticks) 
+{
+	/* if the current thread is not idle thread,
+		change the state of the caller thread to BLOCKED,
+		store the local tick to wake up,
+		update the global tick if necessary,
+		and call schedule() */
+	/* When you manipulate thread list, disable interrupt */
+	
+	struct thread *curr = thread_current ();
+	enum intr_level old_level;
+
+	ASSERT (!intr_context ());
+
+	old_level = intr_disable ();
+
+	ASSERT (curr != idle_thread);
+
+	if (min_sleep_ticks > ticks) {
+		min_sleep_ticks = ticks;
+	}
+
+	curr->wakeup_tick = ticks;
+	
+	list_push_back (&sleep_list, &curr->elem);
+	
+	thread_block();
+
+	intr_set_level (old_level);
+}
+
+void thread_awake(int64_t ticks)
+{
+	struct list_elem *el = list_begin(&sleep_list);
+
+	while(el != list_end(&sleep_list)){
+		struct thread *t = list_entry(el, struct thread, elem);
+		if(t->wakeup_tick < ticks) {
+		el = list_remove(el);
+		thread_unblock(t);
+	}
+		else {
+			el = list_next(el);
+		}
+	}
+}
+
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
@@ -588,3 +647,12 @@ allocate_tid (void) {
 
 	return tid;
 }
+
+////////////////////////////////HTH016 ADD PSEUDO GETTER OF min_sleep_ticks ////////
+/* Kind of function similar with Getter about min_sleep_ticks */
+int64_t 
+get_min_sleep_tick()
+{
+	return min_sleep_ticks;
+}
+
