@@ -142,7 +142,10 @@ void thread_wakeup(int64_t ticks);
 void minimum_set(int64_t ticks);
 /* 추가한 것들 - 저장해 놓은 tick의 최소값을 반환 */
 int64_t minimum_get(void);
-/* 추가한 것들 - 최대값을 통해 비교 후 최소값을 받음 */
+/* 추가한 것들 - compare를 통해 list안에 element 중 a가 b보다 더 크면 true, 아니면 false */
+bool cmp_priority(struct list_elem *a , struct list_elem *b);
+/* 추가한 것들 - thread 생성할 때 ready list에 있는 priority를 running하고 있는 priority랑 비교해서 높으면 yield하는 함수*/
+void thread_priority(void);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
