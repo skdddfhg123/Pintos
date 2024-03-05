@@ -146,6 +146,4 @@ void			thread_awake(int64_t ticks);
 void			set_minimum_ticks(int64_t ticks);
 int64_t			get_minimum_ticks(void);
 
-bool			cmp_priority(struct list_elem *a, struct list_elem *b, void *aux);
-
 #endif /* threads/thread.h */
