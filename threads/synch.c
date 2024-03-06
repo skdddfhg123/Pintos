@@ -308,10 +308,21 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED) {
 	ASSERT (lock_held_by_current_thread (lock));
 
 	if (!list_empty (&cond->waiters))
+		list_sort(&cond->waiters, sma_priority, 0);
 		sema_up (&list_entry (list_pop_front (&cond->waiters),
 					struct semaphore_elem, elem)->semaphore);
 	// cond에서 pop
+}
 
+bool sma_priority(struct list_elem *a , struct list_elem *b){
+	struct semaphore_elem *a_s = list_entry(a, struct semaphore_elem, elem);
+	struct semaphore_elem *b_s = list_entry(b, struct semaphore_elem, elem);
+	struct list *a_l = &(a_s -> semaphore.waiters);
+	struct list *b_l = &(b_s -> semaphore.waiters);
+
+	int a_th = list_entry (list_begin (a_l), struct thread, elem)->priority;
+	int b_th = list_entry (list_begin (b_l), struct thread, elem)->priority;
+	return a_th > b_th ? true:false;
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
