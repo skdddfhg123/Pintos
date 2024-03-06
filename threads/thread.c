@@ -114,7 +114,6 @@ thread_init (void) {
 	list_init (&destruction_req);
 	list_init (&sleep_list);
 	int64_t Minimum_ticks;
-
 	// lock 상태를 초기화한다.
 	// ready_list, destruction_req를 초기화한다.
 
@@ -418,8 +417,63 @@ thread_priority(void){
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
-	thread_current ()->priority = new_priority;
+	thread_current ()->last_priority = new_priority;
+
+	//priority 수정
+	refresh_priority();
+
 	thread_priority();
+}
+
+void
+lock_compare(struct list_elem *a , struct list_elem *b){
+	struct thread *a_de = list_entry(a, struct thread, d_elem);
+	struct thread *b_de = list_entry(b, struct thread, d_elem);
+	return a_de ->priority > b_de ->priority ? true:false;
+}
+
+void
+donate_priority (void)
+{
+  int depth;
+  struct thread *cur = thread_current ();
+
+  for (depth = 0; depth < 8; depth++){
+    if (!cur->wait_on_lock) break;
+      struct thread *holder = cur->wait_on_lock->holder;
+      holder->priority = cur->priority;
+      cur = holder;
+  }
+}
+
+
+void
+remove_with_lock (struct lock *lock)
+{
+  struct list_elem *e;
+  struct thread *cur = thread_current ();
+
+  for (e = list_begin (&cur->donations); e != list_end (&cur->donations); e = list_next (e)){
+    struct thread *t = list_entry (e, struct thread, d_elem);
+    if (t->wait_on_lock == lock)
+      list_remove (&t->d_elem);
+  }
+}
+
+void
+refresh_priority (void)
+{
+  struct thread *cur = thread_current ();
+
+  cur->priority = cur->last_priority;
+  
+  if (!list_empty (&cur->donations)) {
+    list_sort (&cur->donations, lock_compare, 0);
+
+    struct thread *front = list_entry (list_front (&cur->donations), struct thread, d_elem);
+    if (front->priority > cur->priority)
+      cur->priority = front->priority;
+  }
 }
 
 /* Returns the current thread's priority. */
@@ -517,6 +571,10 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+
+	list_init(&t->donations);
+	t->last_priority = priority;
+	t->wait_on_lock = NULL;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

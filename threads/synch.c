@@ -191,7 +191,25 @@ lock_acquire (struct lock *lock) {
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
 
+	// 추가 > 만약 락이 되어 있다면 우선순위 넘겨주고, 아니면 그냥 바로 락을 줌
+	
+	// 지금 쓰레드가 lock되어 있는지 아닌지 판별(포인터)
+	struct thread * t =  thread_current();
+	// donation list에 채워줌
+	if (lock -> holder){
+		t -> wait_on_lock = lock;
+		list_insert_ordered(&lock -> holder -> donations,
+		&t -> d_elem , lock_compare, NULL);
+	
+		// 전부 donation
+		donate_priority();
+	}
+
 	sema_down (&lock->semaphore);
+
+	// 추가 //
+	t->wait_on_lock = NULL;
+
 	lock->holder = thread_current ();
 }
 
@@ -225,8 +243,12 @@ lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
 
+	remove_with_lock(lock);
+	refresh_priority ();
+
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);
+
 }
 
 /* Returns true if the current thread holds LOCK, false

@@ -108,6 +108,12 @@ struct thread {
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */
+
+	int last_priority;
+	struct list donations;
+	struct list_elem d_elem;
+	struct lock * wait_on_lock;
+
 };
 
 /* If false (default), use round-robin scheduler.
@@ -146,6 +152,16 @@ int64_t minimum_get(void);
 bool cmp_priority(struct list_elem *a , struct list_elem *b);
 /* 추가한 것들 - thread 생성할 때 ready list에 있는 priority를 running하고 있는 priority랑 비교해서 높으면 yield하는 함수*/
 void thread_priority(void);
+
+bool sma_priority(struct list_elem *a , struct list_elem *b);
+void lock_compare(struct list_elem *a , struct list_elem *b);
+
+void
+donate_priority (void);
+void
+refresh_priority (void);
+void
+remove_with_lock (struct lock *lock);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
