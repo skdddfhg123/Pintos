@@ -644,16 +644,15 @@ void thread_awake(int64_t ticks) {
 		if (t->ticks <= ticks){
 			end = list_remove (end);
 			thread_unblock (t);
-			intr_set_level(old_level);
 		}
 		else {
 			end = list_next (end);
 			if (minimum_ticks == 0)
 				minimum_ticks = t->ticks;
 			set_minimum_ticks(t->ticks);
-			intr_set_level(old_level);
 		}
 	}
+	intr_set_level(old_level);
 }
 
 void set_minimum_ticks(int64_t ticks) {
