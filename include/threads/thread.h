@@ -114,6 +114,9 @@ struct thread {
 	struct list_elem d_elem;
 	struct lock * wait_on_lock;
 
+	int nice;
+	int recent_cpu;
+
 };
 
 /* If false (default), use round-robin scheduler.

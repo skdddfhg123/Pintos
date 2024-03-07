@@ -470,9 +470,9 @@ refresh_priority (void)
   if (!list_empty (&cur->donations)) {
     list_sort (&cur->donations, lock_compare, 0);
 
-    struct thread *front = list_entry (list_front (&cur->donations), struct thread, d_elem);
-    if (front->priority > cur->priority)
-      cur->priority = front->priority;
+    struct thread *waiter_front = list_entry (list_front (&cur->donations), struct thread, d_elem);
+    if (waiter_front->priority > cur->priority)
+      cur->priority = waiter_front->priority;
   }
 }
 
