@@ -95,6 +95,8 @@ struct thread {
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 
+	int64_t wakeup_ticks;
+
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
@@ -142,5 +144,15 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 void do_iret (struct intr_frame *tf);
+
+// New //
+void thread_sleep(int64_t ticks);
+void thread_awake(int64_t ticks);
+void save_minimum_ticks(int64_t ticks);
+int64_t get_minimum_ticks(void);
+
+void cmp_priority(struct list_elem * a, struct list_elem * b);
+void sorting_priority(int priority);
+
 
 #endif /* threads/thread.h */

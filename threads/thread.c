@@ -40,6 +40,9 @@ static struct lock tid_lock;
 /* Thread destruction requests */
 static struct list destruction_req;
 
+/* Thread sleep queue */
+static struct list sleep_list;
+
 /* Statistics. */
 static long long idle_ticks;    /* # of timer ticks spent idle. */
 static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
@@ -48,6 +51,7 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
+int64_t minimum_tick = 0;
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -109,6 +113,7 @@ thread_init (void) {
 	lock_init (&tid_lock);
 	list_init (&ready_list);
 	list_init (&destruction_req);
+	list_init (&sleep_list);
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
@@ -207,6 +212,8 @@ thread_create (const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock (t);
 
+	sorting_priority(priority);
+
 	return tid;
 }
 
@@ -240,7 +247,7 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	list_insert_ordered (&ready_list, &t->elem, cmp_priority, NULL);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -303,15 +310,75 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		list_insert_ordered (&ready_list, &curr->elem, cmp_priority, NULL);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
+}
+
+// 추가 - timer //
+void thread_sleep(int64_t ticks){
+	struct thread * t = thread_current();
+	enum intr_level old_level;
+	
+	old_level = intr_disable();
+	if (t != idle_thread)
+		t->wakeup_ticks = ticks;
+		list_insert_ordered (&sleep_list, &t->elem, cmp_priority, NULL);
+		thread_block();
+
+	intr_set_level(old_level);
+}
+
+void thread_awake(int64_t ticks){
+	enum intr_level old_level;
+	
+	old_level = intr_disable();
+	struct list_elem * e = list_begin(&sleep_list);
+	while (e != list_end(&sleep_list)){
+		struct thread * t = list_entry(e,struct thread, elem);
+		if (t->wakeup_ticks <= ticks){
+			e = list_remove(e);
+			thread_unblock(t);
+			// list_push_back (&ready_list, &t->elem);
+			save_minimum_ticks(t->wakeup_ticks);
+		}else{
+			e = list_next(e);
+		}
+	}
+	intr_set_level(old_level);
+}
+
+void save_minimum_ticks(int64_t ticks){
+	if (minimum_tick == 0){
+		minimum_tick = ticks;
+	}else{
+		if (minimum_tick > ticks)
+			minimum_tick = ticks;
+	}
+	return minimum_tick;
+}
+
+int64_t get_minimum_ticks(void){
+	return minimum_tick;
+}
+
+void cmp_priority(struct list_elem * a, struct list_elem * b){
+	struct thread * a_th = list_entry(a,struct thread, elem);
+	struct thread * b_th = list_entry(b,struct thread, elem);
+	a_th->priority > b_th->priority ? true:false;
+}
+
+void sorting_priority(int priority){
+	if (list_entry(list_front(&ready_list), struct thread, elem) -> priority < priority){
+		thread_yield();
+	}
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+	sorting_priority(new_priority);
 }
 
 /* Returns the current thread's priority. */
