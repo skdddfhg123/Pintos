@@ -134,7 +134,13 @@ timer_interrupt (struct intr_frame *args UNUSED) {
 		move them to the ready list if necessary.
 		update the global tick.
 	*/
-	thread_awake(ticks);
+	if (ticks >= get_minimum_ticks()) {
+		thread_awake(ticks);
+	}
+}
+
+void get_global_ticks(void) {
+	return ticks;
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer

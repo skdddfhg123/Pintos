@@ -73,9 +73,10 @@ h_thread_func (void *ls_)
 {
   struct lock_and_sema *ls = ls_;
 
+  // printf("!!!!\n");
   lock_acquire (&ls->lock);
   msg ("Thread H acquired lock.");
-
+  // printf("!!!\n");
   sema_up (&ls->sema);
   lock_release (&ls->lock);
   msg ("Thread H finished.");

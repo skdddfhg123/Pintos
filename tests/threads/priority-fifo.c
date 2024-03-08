@@ -88,7 +88,7 @@ simple_thread_func (void *data_)
 {
   struct simple_thread_data *data = data_;
   int i;
-  
+  // printf("!!!\n");
   for (i = 0; i < ITER_CNT; i++) 
     {
       lock_acquire (data->lock);

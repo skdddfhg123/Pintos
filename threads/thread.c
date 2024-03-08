@@ -28,8 +28,10 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
-
 static struct list sleep_list;
+
+// 아직 잘 모름
+static struct list lock_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -327,9 +329,37 @@ thread_yield (void) {
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
+/* Todo
+   1. Set priority considering the donation.
+*/
 void
 thread_set_priority (int new_priority) {
-	thread_current ()->priority = new_priority;
+	enum intr_level old_level = intr_disable ();
+
+	struct thread *cur = thread_current();
+	struct list_elem *e = list_begin(&(cur->donations));
+
+	cur->old_priority = new_priority;
+	cur->priority = new_priority;
+	// printf("%d\n", list_size(&cur->donations));
+	// if (list_size(&cur->donations) && \
+	// 	cur->priority < list_entry(e, struct thread, d_elem)->priority)
+	// 	cur->priority = list_entry(e, struct thread, d_elem)->priority;
+	// printf("cur %d\n",cur->priority );
+	while (e != list_end(&(cur->donations))) {
+		struct thread *t = list_entry(e, struct thread, d_elem);
+		if (t->priority > cur->priority)
+			cur->priority = t->priority;
+		e = e->next;
+	}
+	if (cur->priority < list_entry(list_begin(&ready_list), struct thread, elem)->priority) {
+		// if (cur != idle_thread)
+		// 	list_insert_ordered(&ready_list, &cur->elem, cmp_old_priority, NULL);
+		if (cur != idle_thread)
+			list_insert_ordered(&ready_list, &cur->elem, cmp_priority, NULL);
+		do_schedule (THREAD_READY);
+	}
+	intr_set_level (old_level);
 }
 
 /* Returns the current thread's priority. */
@@ -427,6 +457,10 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+	/* Donations */
+	t->old_priority = priority;
+	t->wait_on_lock = NULL;
+	list_init(&(t->donations));
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -663,4 +697,15 @@ void set_minimum_ticks(int64_t ticks) {
 
 int64_t get_minimum_ticks(void) {
 	return minimum_ticks;
+}
+
+void donate_priority (void) {
+	struct thread *cur = thread_current ();
+
+	while (cur->wait_on_lock != NULL){
+		struct thread *holder = cur->wait_on_lock->holder;
+		if (cur->priority > holder->priority)
+			holder->priority = cur->priority;
+		cur = holder;
+	}
 }

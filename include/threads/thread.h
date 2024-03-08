@@ -87,14 +87,22 @@ typedef int tid_t;
  * blocked state is on a semaphore wait list. */
 struct thread {
 	/* Owned by thread.c. */
-	tid_t 				tid;             /* Thread identifier. */
+	tid_t 				tid;             /* 쓰레드 식별자 */
 	int64_t				ticks;           /* Awake ticks */
-	int 				priority;        /* Priority. */
-	char	 			name[16];        /* Name (for debugging purposes). */
+	int 				priority;        /* 우선순위 */
+	char	 			name[16];        /* 이름 (디버깅 목적) */
 	unsigned			magic;           /* Detects stack overflow. */
-	enum thread_status	status;          /* Thread state. */
-	struct list_elem	elem;            /* List element. */
+	enum thread_status	status;          /* 쓰레드 상태 */
+	struct list_elem	elem;            /* List element */
 	struct intr_frame	tf;              /* Information for switching */
+	/* Donations */
+	int					old_priority;    /* Old Priority */
+	struct lock			*wait_on_lock;   /* lock object */
+	struct list			donations;       /* Lock list */
+	struct list_elem	d_elem;          /* Donations element */
+
+	// struct thread		donation;
+	// wait_on_lock
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -145,5 +153,7 @@ void			thread_awake(int64_t ticks);
 
 void			set_minimum_ticks(int64_t ticks);
 int64_t			get_minimum_ticks(void);
+
+void			donate_priority (void);
 
 #endif /* threads/thread.h */

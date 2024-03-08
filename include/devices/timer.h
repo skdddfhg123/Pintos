@@ -20,4 +20,6 @@ void timer_nsleep (int64_t nanoseconds);
 
 void timer_print_stats (void);
 
+void get_global_ticks(void);
+
 #endif /* devices/timer.h */

@@ -23,11 +23,12 @@ void sema_up (struct semaphore *);
 void sema_self_test (void);
 
 bool cmp_priority(struct list_elem *a, struct list_elem *b, void *aux);
+bool cmp_old_priority(struct list_elem *a, struct list_elem *b, void *aux);
 
 /* Lock. */
 struct lock {
-	struct thread *holder;      /* Thread holding lock (for debugging). */
-	struct semaphore semaphore; /* Binary semaphore controlling access. */
+	struct thread		*holder;      /* Thread holding lock (for debugging). */
+	struct semaphore	semaphore;    /* Binary semaphore controlling access. */
 };
 
 void lock_init (struct lock *);
@@ -35,6 +36,8 @@ void lock_acquire (struct lock *);
 bool lock_try_acquire (struct lock *);
 void lock_release (struct lock *);
 bool lock_held_by_current_thread (const struct lock *);
+
+bool cmp_lock_priority(struct list_elem *cur, struct list_elem *cmp, void *aux);
 
 /* Condition variable. */
 struct condition {
@@ -46,7 +49,7 @@ void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
-bool cmp_sema_priority(struct list_elem *a, struct list_elem *b, void *aux);
+bool cmp_cond_priority(struct list_elem *a, struct list_elem *b, void *aux);
 
 /* Optimization barrier.
  *
