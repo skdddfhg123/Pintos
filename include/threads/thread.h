@@ -88,7 +88,7 @@ typedef int tid_t;
 struct thread {
 	/* Owned by thread.c. */
 	tid_t 				tid;             /* 쓰레드 식별자 */
-	int64_t				ticks;           /* Awake ticks */
+	int64_t				ticks;           /* thread ticks(awake, mlfq) */
 	int 				priority;        /* 우선순위 */
 	char	 			name[16];        /* 이름 (디버깅 목적) */
 	unsigned			magic;           /* Detects stack overflow. */
@@ -100,9 +100,10 @@ struct thread {
 	struct lock			*wait_on_lock;   /* lock object */
 	struct list			donations;       /* Lock list */
 	struct list_elem	d_elem;          /* Donations element */
-
-	// struct thread		donation;
-	// wait_on_lock
+	/* MLFQ */
+	int					nice;            /* NICE */
+	int					recent_cpu;      /* recent_cpu */
+	int					load_avg;        
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -113,6 +114,24 @@ struct thread {
 	struct supplemental_page_table spt;
 #endif
 };
+
+#define F_32					1<<14
+
+#define INT_TO_FP(n, f)			((n) * (f))
+#define FP_TO_INT_ZERO(x, f)	((x) / (f))
+#define FP_TO_INT_NEAREST(x, f)	(((x) >= 0) ? (((x) + (f) / 2) / (f)) : (((x) - (f) / 2) / (f)))
+
+#define ADD(x, y)				((x) + (y))
+#define SUBTRACT(x, y)			((x) - (y))
+
+#define ADD_INT(x, n, f)		((x) + (n) * (f))
+#define SUBTRACT_INT(x, n, f)	((x) - (n) * (f))
+
+#define MULTIPLY(x, y, f)		(int)(((int64_t)(x)) * (y) / (f))
+#define MULTIPLY_INT(x, n)		((x) * (n))
+
+#define DIVIDE(x, y, f)			(int)(((int64_t)(x)) * (f) / (y))
+#define DIVIDE_INT(x, n)		((x) / (n))
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -155,5 +174,14 @@ void			set_minimum_ticks(int64_t ticks);
 int64_t			get_minimum_ticks(void);
 
 void			donate_priority (void);
+
+void			calculate_load_avg (void);
+
+void			thread_add_recent_cpu (void);
+void			calculate_resent_cpu (struct thread *t);
+void			calculate_resent_cpu_all (void);
+
+void			calculate_priority (struct thread *t);
+void			calculate_priority_all (void);
 
 #endif /* threads/thread.h */

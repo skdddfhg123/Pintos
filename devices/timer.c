@@ -122,20 +122,41 @@ void
 timer_print_stats (void) {
 	printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
-/* Timer interrupt handler. */
+
+/*  Every clock tick : 
+		increase the running thread's recent_cpu
+	Every fourth tick : 
+		priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
+	Every second
+		recent_cpu = decay * recent_cpu + nice
+		decay = (2 * load_avg) / (2 * load_avg + 1)
+		load_avg = (59/60) * load_avg + (1/60)*ready_threads
+*/
+/* Functions to be added
+	calculate priority using recnet_cpu and nice
+	----- calculate recent_cpu 
+	----- calculate load_avg
+	----- increase recent_cpu by 1
+	recalculate priority and recent_cpu of all threads
+*/
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick ();
-	/* code to add;
-		check sleep list and the global tick.
-		find any threads to wake up,
-		move them to the ready list if necessary.
-		update the global tick.
-	*/
+
 	if (ticks >= get_minimum_ticks()) {
 		thread_awake(ticks);
+	}
+	/* MLFQ */
+	if (thread_mlfqs) {
+		thread_add_recent_cpu();
+		if ((ticks % 4) == 0) {
+			if ((ticks % 100) == 0) {
+				calculate_load_avg();
+				calculate_resent_cpu_all();
+			}
+			calculate_priority(thread_current());
+		}
 	}
 }
 
