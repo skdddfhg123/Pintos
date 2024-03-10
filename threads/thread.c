@@ -212,7 +212,7 @@ thread_create (const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock (t);
 
-	sorting_priority(priority);
+	reorder_ready_list();
 
 	return tid;
 }
@@ -362,14 +362,16 @@ int64_t get_minimum_ticks(void){
 	return minimum_tick;
 }
 
-void cmp_priority(struct list_elem * a, struct list_elem * b){
+// 비교공방 //
+bool cmp_priority(struct list_elem * a, struct list_elem * b){
 	struct thread * a_th = list_entry(a,struct thread, elem);
 	struct thread * b_th = list_entry(b,struct thread, elem);
-	a_th->priority > b_th->priority ? true:false;
+	return a_th->priority > b_th->priority ? true:false;
 }
 
-void sorting_priority(int priority){
-	if (list_entry(list_front(&ready_list), struct thread, elem) -> priority < priority){
+void reorder_ready_list(void){
+
+	if (!list_empty(&ready_list) && list_entry(list_front(&ready_list), struct thread, elem) -> priority > thread_current()->priority){
 		thread_yield();
 	}
 }
@@ -378,7 +380,7 @@ void sorting_priority(int priority){
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
-	sorting_priority(new_priority);
+	reorder_ready_list();
 }
 
 /* Returns the current thread's priority. */
@@ -476,6 +478,10 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+
+	list_init(&t->donations);
+	t->own_priority = NULL;
+	t->wait_on_lock = NULL;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

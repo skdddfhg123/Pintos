@@ -109,6 +109,11 @@ struct thread {
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */
+
+	struct list donations;
+	struct list_elem d_elem;
+	struct lock * wait_on_lock;
+	int own_priority;
 };
 
 /* If false (default), use round-robin scheduler.
@@ -151,8 +156,11 @@ void thread_awake(int64_t ticks);
 void save_minimum_ticks(int64_t ticks);
 int64_t get_minimum_ticks(void);
 
-void cmp_priority(struct list_elem * a, struct list_elem * b);
-void sorting_priority(int priority);
+bool cmp_priority(struct list_elem * a, struct list_elem * b);
+void reorder_ready_list(void);
 
+bool sema_priority(struct list_elem * a, struct list_elem * b);
+
+bool lock_compare(struct list_elem * a, struct list_elem * b);
 
 #endif /* threads/thread.h */
