@@ -228,6 +228,11 @@ lock_acquire (struct lock *lock) {
 	}
 	sema_down (&lock->semaphore);
 	lock->holder = cur;
+	lock->holder = thread_current ();
+	/* if the lock is not available, store address of the lock.
+		Store the current priority and the donated threads on list(multiple donation)
+		Donate priority
+	*/
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
