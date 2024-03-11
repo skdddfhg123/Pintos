@@ -213,9 +213,6 @@ lock_init (struct lock *lock) {
    */
 void
 lock_acquire (struct lock *lock) {
-	// if (thread_mlfqs)
-	// 	return ;
-
 	ASSERT (lock != NULL);
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
@@ -264,19 +261,16 @@ lock_try_acquire (struct lock *lock) {
    */
 void
 lock_release (struct lock *lock) {
-	// if (thread_mlfqs)
-	// 	return;
-
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
 
-	struct	list_elem	*e;
-	int					max_priority;
-
-	max_priority = lock->holder->old_priority;
-	e = list_begin(&(lock->holder->donations));
-
 	if (!thread_mlfqs) {
+		struct	list_elem	*e;
+		int					max_priority;
+
+		max_priority = lock->holder->old_priority;
+		e = list_begin(&(lock->holder->donations));
+
 		while (e != list_end(&(lock->holder->donations))) {
 			struct thread *t = list_entry(e, struct thread, d_elem);
 			if (t->wait_on_lock == lock) {
@@ -322,26 +316,6 @@ cond_init (struct condition *cond) {
 	list_init (&cond->waiters);
 }
 
-/* Atomically releases LOCK and waits for COND to be signaled by
-   some other piece of code.  After COND is signaled, LOCK is
-   reacquired before returning.  LOCK must be held before calling
-   this function.
-
-   The monitor implemented by this function is "Mesa" style, not
-   "Hoare" style, that is, sending and receiving a signal are not
-   an atomic operation.  Thus, typically the caller must recheck
-   the condition after the wait completes and, if necessary, wait
-   again.
-
-   A given condition variable is associated with only a single
-   lock, but one lock may be associated with any number of
-   condition variables.  That is, there is a one-to-many mapping
-   from locks to condition variables.
-
-   This function may sleep, so it must not be called within an
-   interrupt handler.  This function may be called with
-   interrupts disabled, but interrupts will be turned back on if
-   we need to sleep. */
 void
 cond_wait (struct condition *cond, struct lock *lock) {
 	struct semaphore_elem waiter;
@@ -353,10 +327,10 @@ cond_wait (struct condition *cond, struct lock *lock) {
 
 	sema_init (&waiter.semaphore, 0);
 
-	struct thread *sema =  list_entry(list_begin(&waiter.semaphore.waiters), struct thread, elem);
-
-	sema->priority = lock->holder->priority;
-	list_insert_ordered(&cond->waiters, &waiter.elem, cmp_cond_priority, NULL);
+	// struct thread *sema =  list_entry(list_begin(&waiter.semaphore.waiters), struct thread, elem);
+	// sema->priority = lock->holder->priority;
+	
+	list_insert_ordered(&cond->waiters, &waiter.elem, cmp_cond_priority, lock);
 	
 	lock_release (lock);
 	sema_down (&waiter.semaphore);
@@ -399,10 +373,11 @@ cond_broadcast (struct condition *cond, struct lock *lock) {
 		cond_signal (cond, lock);
 }
 
-bool cmp_cond_priority(struct list_elem *a, struct list_elem *b, void *aux UNUSED) {
-	struct semaphore_elem *a_sema = list_entry (a, struct semaphore_elem, elem);
+bool cmp_cond_priority(struct list_elem *a, struct list_elem *b, struct lock *lock) {
+	// struct semaphore_elem *a_sema = list_entry (a, struct semaphore_elem, elem);
+	(void)a;
 	struct semaphore_elem *b_sema = list_entry (b, struct semaphore_elem, elem);
-	return list_entry(list_begin(&a_sema->semaphore.waiters), struct thread, elem)->priority > \
+	return lock->holder->priority > \
 			list_entry(list_begin(&b_sema->semaphore.waiters), struct thread, elem)->priority \
 			? true : false;
 }
