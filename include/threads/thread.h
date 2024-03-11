@@ -104,7 +104,7 @@ struct thread {
 	int					nice;            /* NICE */
 	int					recent_cpu;      /* recent_cpu */
 	int					load_avg;        
-
+	struct list_elem	all_elem;        
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
@@ -117,20 +117,20 @@ struct thread {
 
 #define F_32					1<<14
 
-#define INT_TO_FP(n, f)			((n) * (f))
-#define FP_TO_INT_ZERO(x, f)	((x) / (f))
-#define FP_TO_INT_NEAREST(x, f)	(((x) >= 0) ? (((x) + (f) / 2) / (f)) : (((x) - (f) / 2) / (f)))
+#define INT_TO_FP(n)			((n) * (F_32))
+#define FP_TO_INT_ZERO(x)		((x) / (F_32))
+#define FP_TO_INT_NEAREST(x)	(((x) >= 0) ? (((x) + (F_32) / 2) / (F_32)) : (((x) - (F_32) / 2) / (F_32)))
 
 #define ADD(x, y)				((x) + (y))
 #define SUBTRACT(x, y)			((x) - (y))
 
-#define ADD_INT(x, n, f)		((x) + (n) * (f))
-#define SUBTRACT_INT(x, n, f)	((x) - (n) * (f))
+#define ADD_INT(x, n)			((x) + (n) * (F_32))
+#define SUBTRACT_INT(x, n)		((x) - (n) * (F_32))
 
-#define MULTIPLY(x, y, f)		(int)(((int64_t)(x)) * (y) / (f))
+#define MULTIPLY(x, y)			(((int64_t)(x)) * (y) / (F_32))
 #define MULTIPLY_INT(x, n)		((x) * (n))
 
-#define DIVIDE(x, y, f)			(int)(((int64_t)(x)) * (f) / (y))
+#define DIVIDE(x, y)			(((int64_t)(x)) * (F_32) / (y))
 #define DIVIDE_INT(x, n)		((x) / (n))
 
 /* If false (default), use round-robin scheduler.

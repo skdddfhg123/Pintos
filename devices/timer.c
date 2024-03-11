@@ -151,11 +151,11 @@ timer_interrupt (struct intr_frame *args UNUSED) {
 	if (thread_mlfqs) {
 		thread_add_recent_cpu();
 		if ((ticks % 4) == 0) {
-			if ((ticks % 100) == 0) {
-				calculate_load_avg();
-				calculate_resent_cpu_all();
-			}
 			calculate_priority(thread_current());
+			if ((ticks % 100) == 0) {
+				calculate_resent_cpu_all();
+				calculate_load_avg();
+			}
 		}
 	}
 }
