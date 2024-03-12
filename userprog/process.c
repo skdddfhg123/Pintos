@@ -179,6 +179,9 @@ process_exec (void *f_name) {
 	/* And then load the binary */
 	success = load (file_name, &_if);
 
+	if (!success)
+		thread_exit();
+
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	if (!success)
@@ -328,6 +331,13 @@ load (const char *file_name, struct intr_frame *if_) {
 	off_t file_ofs;
 	bool success = false;
 	int i;
+
+	char s[128] = file_name;
+	char *token, *save_ptr;
+
+	for (token = strtok_r(s, " ", &save_ptr); token != NULL;
+	token = strtok_r(NULL, " ", &save_ptr))
+	printf("'%s'\n", token);
 
 	/* Allocate and activate page directory. */
 	t->pml4 = pml4_create ();
