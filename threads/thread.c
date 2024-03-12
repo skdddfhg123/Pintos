@@ -498,16 +498,16 @@ thread_get_nice (void) {
 /* Returns 100 times the system load average. */
 int
 thread_get_load_avg (void) {
-	load_avg = (59/60)*load_avg + (1/60)*ready_threads();
-	return load_avg;
+	// load_avg = (59/60)*load_avg + (1/60)*ready_threads();
+	// return load_avg;
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) {
 	
-	thread_current()->recent_cpu = (2 * load_avg)/(2 * load_avg + 1) * thread_current()->recent_cpu + thread_current()->nice;
-	return thread_current()-> recent_cpu;
+	// thread_current()->recent_cpu = (2 * load_avg)/(2 * load_avg + 1) * thread_current()->recent_cpu + thread_current()->nice;
+	// return thread_current()-> recent_cpu;
 }
 
 int ready_threads(void){
