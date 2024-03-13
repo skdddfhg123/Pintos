@@ -332,13 +332,6 @@ load (const char *file_name, struct intr_frame *if_) {
 	bool success = false;
 	int i;
 
-	char s[128] = file_name;
-	char *token, *save_ptr;
-
-	for (token = strtok_r(s, " ", &save_ptr); token != NULL;
-	token = strtok_r(NULL, " ", &save_ptr))
-	printf("'%s'\n", token);
-
 	/* Allocate and activate page directory. */
 	t->pml4 = pml4_create ();
 	if (t->pml4 == NULL)
@@ -426,6 +419,45 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
+
+	uint8_t * esp = if_ -> rsp;
+
+	char s[128];
+	char *argv[128];
+	strlcpy(s, file_name , sizeof(s));
+	char *token, *save_ptr;
+
+	int argc = 0; //인수의 개수
+	int argv_sizes[128];
+
+	// 인자 파싱 및 argv 배열 채우기
+	for (token = strtok_r(s, " ", &save_ptr); token != NULL; token = strtok_r(NULL, " ", &save_ptr)) {
+		argv[argc] = token; // argv 배열에 인자 저장
+		argv_sizes[argc] = strlen(token);
+		argc++;
+	}
+
+	// 인자들을 스택에 복사
+	for (int i = argc - 1; i >= 0; i--) {
+		uint8_t padding = (8 - (argv_sizes[i] % 8)) % 8;
+		if_->rsp -= padding;
+		memset(if_->rsp, 0, padding);
+
+		if_->rsp -= argv_sizes[i];
+		memcpy(if_->rsp, argv[i], argv_sizes[i]);
+		argv[i] = (char *)if_->rsp; // 스택에 저장된 인자의 주소를 argv 배열에 업데이트
+	}
+
+	// argv 배열의 포인터들을 스택에 배치
+	if_->rsp -= (argc + 1) * sizeof(char*); // argv 배열 + NULL 포인터에 대한 공간 확보
+	memcpy(if_->rsp, argv, argc * sizeof(char*));
+	memset(if_->rsp + argc * sizeof(char*), 0, sizeof(char*)); // 마지막에 NULL 포인터 추가
+
+	// argc 값을 스택에 배치
+	if_->rsp -= sizeof(int);
+	*(int*)(if_->rsp) = argc;
+
+
 
 	success = true;
 
