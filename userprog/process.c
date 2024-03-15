@@ -190,9 +190,15 @@ process_exec (void *f_name) {
 	/* And then load the binary */
 	success = load (file_name, &_if);
 
-	
+	int argc = 0;
+	for (int argc ; file_name[argc] != NULL ; argc++){
+		if (file_name[argc] == NULL);
+		argc += 1;
+	}
+	if (file_name != NULL)	argc + 1;
 
-	
+
+
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	if (!success)
