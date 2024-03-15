@@ -191,13 +191,37 @@ process_exec (void *f_name) {
 	success = load (file_name, &_if);
 
 	int argc = 0;
-	for (int argc ; file_name[argc] != NULL ; argc++){
-		if (file_name[argc] == NULL);
-		argc += 1;
+	for (int i = 0; *(file_name + i) != NULL;i++){
+		if (file_name[i] == ' '){
+			argc += 1;
+		}
 	}
-	if (file_name != NULL)	argc + 1;
+	if (argc > 0) argc += 1;
 
+	int allsize = 0;
+	char * token , * save_ptr , * argv[argc];
+	// 일단 +1한 값으로 만들어주고 for에서 선언할 때 -1 빼서 개수 맞춰 줌
 
+	// char값을 가르키는포인터로 배열 안을 지정해서 투입
+	for (argc -= 1; argc >= 0; argc--){
+		token = strtok_r(f_name, " ", &save_ptr);
+		argv[argc] = token;
+		f_name = save_ptr;
+		// save_ptr이 token이후 값을 지목해주므로 f_name를 이에 대입시키면 됨
+		allsize += strlen(token) + 1;
+		printf("argv[%d] : %s , size : %d\n",argc,argv[argc], allsize);
+	}
+
+	int padding = 0;
+	if (allsize > 8) {
+    padding = 8 - (allsize % 8);
+	} else {
+    padding = 8 - allsize;
+	}
+	printf("padding : %d\n",padding);
+
+	_if.R.rsi = &argv[0];
+	_if.R.rdi = argc;
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
