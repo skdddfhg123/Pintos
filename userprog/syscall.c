@@ -41,15 +41,31 @@ syscall_init (void) {
 void
 syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
-	switch (f->R.rax) //syscall number
-	{
-	case SYS_EXIT:
-		printf("%s: exit(0)\n",thread_current()->name);
-		thread_exit();
-		break;
-	case SYS_WRITE:
-		putbuf(f->R.rsi,f->R.rdx);
-	default:
-		break;
+	// switch (f->R.rax) //syscall number
+	// {
+	// case SYS_EXIT:
+	// 	printf("%s: exit(0)\n",thread_current()->name);
+	// 	thread_exit();
+	// 	break;
+	// case SYS_WRITE:
+	// 	putbuf(f->R.rsi,f->R.rdx);
+	// default:
+	// 	break;
+	// }
+
+	if (f->R.rax){
+		if (f->R.rax == SYS_EXIT){
+			printf("%s: exit(0)\n",thread_current()->name);
+			thread_exit();
+		}
+		if (f->R.rax == SYS_WRITE){
+			putbuf(f->R.rsi,f->R.rdx);
+		}
+		// if (f->R.rax == SYS_FORK){
+		// 	process_fork (const char *name, struct intr_frame *if_ UNUSED);
+		// }
+		else{
+			return;
+		}
 	}
 }

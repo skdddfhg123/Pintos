@@ -75,8 +75,7 @@ initd (void *f_name) {
 	NOT_REACHED ();
 }
 
-/* Clones the current process as `name`. Returns the new process's thread id, or
- * TID_ERROR if the thread cannot be created. */
+/* 현재 프로세스를 'name'으로 복제합니다. 새로운 프로세스의 스레드 ID를 반환하거나, 스레드를 생성할 수 없는 경우 TID_ERROR를 반환합니다. */
 tid_t
 process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	/* Clone current thread to new thread.*/
@@ -116,16 +115,14 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 }
 #endif
 
-/* A thread function that copies parent's execution context.
- * Hint) parent->tf does not hold the userland context of the process.
- *       That is, you are required to pass second argument of process_fork to
- *       this function. */
+/* 부모의 실행 컨텍스트를 복사하는 스레드 함수입니다.
+힌트) parent->tf는 프로세스의 유저 랜드 컨텍스트를 저장하지 않습니다. 즉, process_fork의 두 번째 인자를 이 함수에 전달해야 합니다. */
 static void
 __do_fork (void *aux) {
 	struct intr_frame if_;
 	struct thread *parent = (struct thread *) aux;
 	struct thread *current = thread_current ();
-	/* TODO: somehow pass the parent_if. (i.e. process_fork()'s if_) */
+	/* TODO: 부모 _if를 어떻게든 전달해야 합니다. (i.e. process_fork()'s if_) */
 	struct intr_frame *parent_if;
 	bool succ = true;
 
@@ -147,15 +144,13 @@ __do_fork (void *aux) {
 		goto error;
 #endif
 
-	/* TODO: Your code goes here.
-	 * TODO: Hint) To duplicate the file object, use `file_duplicate`
-	 * TODO:       in include/filesys/file.h. Note that parent should not return
-	 * TODO:       from the fork() until this function successfully duplicates
-	 * TODO:       the resources of parent.*/
+	/* TODO: 여기에 코드를 작성하세요. 힌트)파일 객체를 복제하려면 include/filesys/file.h에 있는 file_duplicate를 사용하세요. 부모는 이 함수가 성공적으로 부모의 리소스를 복제할 때까지 fork()에서 반환하지 않아야 합니다..*/
+
+
 
 	process_init ();
 
-	/* Finally, switch to the newly created process. */
+	/* 마지막으로, 새로 생성된 프로세스로 전환하세요. */
 	if (succ)
 		do_iret (&if_);
 error:
@@ -193,7 +188,13 @@ process_exec (void *f_name) {
 		if (file_name[i] == ' '){
 			argc += 1;
 		}
+
+		if (file_name[i] == file_name[i-1] && file_name[i] == ' '){
+			argc -= 1;
+		}
 	}
+	// printf("argc : %d\n", argc);
+
 	int allsize = 0 , size = 0;
 	char * token , * save_ptr , * argv[argc+1];
 	uintptr_t stack_ptrs[argc+1];
@@ -204,26 +205,30 @@ process_exec (void *f_name) {
 	token = strtok_r(f_name, " ", &save_ptr);
 	f_name = save_ptr;
 	argv[i] = token;
-	//printf("argv[%d] : %s\n",i,argv[i]);
+
+	//디버깅
+	// printf("argv[%d] : %s , size : %d\n",i,argv[i], strlen(argv[i]));
+
 	}
 	
 	/* And then load the binary */
 	success = load (file_name, &_if);
 
 	for (int i = argc; i >= 0; i--){
+
 		// 크기만큼 size 빼줌. 아래는 다 size 관련된 부분
-		size = strlen(argv[i]) + 1;
-		allsize += strlen(argv[i]) + 1;
+		size = strlen(argv[i])+1;
+		allsize += strlen(argv[i])+1;
 		_if.rsp -= size;
 
 		// 시작 address를 저장함
 		stack_ptrs[i] = _if.rsp;
 
 		// 단어 추가
-		memcpy(_if.rsp, argv[i], strlen(argv[i])+1);
+		memcpy(_if.rsp, argv[i], size);
 
 		//디버깅
-		//printf("argv[%d] : %s , 전체 size : %d, 개별 size : %d, stack_ptrs = %p, address : %p\n",i,argv[i], allsize, size, stack_ptrs[i],_if.rsp);
+		// printf("argv[%d] : %s , 전체 size : %d, 개별 size : %d, stack_ptrs = %p, address : %p\n",i,argv[i], allsize, size, stack_ptrs[i],_if.rsp);
 	}
 
 	uint8_t padding = 0;
@@ -257,7 +262,7 @@ process_exec (void *f_name) {
 	_if.R.rsi = _if.rsp + 8;
 	//printf("rdi/rsi : %d , %p\n", _if.R.rdi , _if.R.rsi);
 
-	//hex_dump(_if.rsp, _if.rsp, KERN_BASE - _if.rsp, true);
+	// hex_dump(_if.rsp, _if.rsp, KERN_BASE - _if.rsp, true);
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
@@ -283,6 +288,7 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
+	// while(1){}
 	timer_sleep(10);
 	return -1;
 }
@@ -297,6 +303,9 @@ process_exit (void) {
 	 * TODO: We recommend you to implement process resource cleanup here. */
 
 	process_cleanup ();
+
+	// printf ("%s: exit(%d)\n", thread_current()->name , 0);
+	// thread_exit();
 }
 
 /* Free the current process's resources. */
