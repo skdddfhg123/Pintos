@@ -22,6 +22,7 @@
 #include "vm/vm.h"
 #endif
 
+
 static void process_cleanup (void);
 static bool load (const char *file_name, struct intr_frame *if_);
 static void initd (void *f_name);
@@ -49,7 +50,7 @@ process_create_initd (const char *file_name) {
 	if (fn_copy == NULL)
 		return TID_ERROR;
 	strlcpy (fn_copy, file_name, PGSIZE);
-
+	
 	char *token, *save_ptr;
 	token = strtok_r(file_name, " ", &save_ptr);
 
@@ -186,9 +187,6 @@ process_exec (void *f_name) {
 
 	/* We first kill the current context */
 	process_cleanup ();
-	
-	/* And then load the binary */
-	success = load (file_name, &_if);
 
 	int argc = 0;
 	for (int i = 0; *(file_name + i) != NULL;i++){
@@ -196,43 +194,80 @@ process_exec (void *f_name) {
 			argc += 1;
 		}
 	}
-	if (argc > 0) argc += 1;
+	int allsize = 0 , size = 0;
+	char * token , * save_ptr , * argv[argc+1];
+	uintptr_t stack_ptrs[argc+1];
 
-	int allsize = 0;
-	char * token , * save_ptr , * argv[argc];
-	// 일단 +1한 값으로 만들어주고 for에서 선언할 때 -1 빼서 개수 맞춰 줌
+	for (int i = 0; i <= argc; i++){
+	// token 빼내서 잘라줌
+	// save_ptr이 token이후 값을 지목해주므로 f_name를 이에 대입시키면 됨
+	token = strtok_r(f_name, " ", &save_ptr);
+	f_name = save_ptr;
+	argv[i] = token;
+	//printf("argv[%d] : %s\n",i,argv[i]);
+	}
+	
+	/* And then load the binary */
+	success = load (file_name, &_if);
 
-	// char값을 가르키는포인터로 배열 안을 지정해서 투입
-	for (argc -= 1; argc >= 0; argc--){
-		token = strtok_r(f_name, " ", &save_ptr);
-		argv[argc] = token;
-		f_name = save_ptr;
-		// save_ptr이 token이후 값을 지목해주므로 f_name를 이에 대입시키면 됨
-		allsize += strlen(token) + 1;
-		printf("argv[%d] : %s , size : %d\n",argc,argv[argc], allsize);
+	for (int i = argc; i >= 0; i--){
+		// 크기만큼 size 빼줌. 아래는 다 size 관련된 부분
+		size = strlen(argv[i]) + 1;
+		allsize += strlen(argv[i]) + 1;
+		_if.rsp -= size;
+
+		// 시작 address를 저장함
+		stack_ptrs[i] = _if.rsp;
+
+		// 단어 추가
+		memcpy(_if.rsp, argv[i], strlen(argv[i])+1);
+
+		//디버깅
+		//printf("argv[%d] : %s , 전체 size : %d, 개별 size : %d, stack_ptrs = %p, address : %p\n",i,argv[i], allsize, size, stack_ptrs[i],_if.rsp);
 	}
 
-	int padding = 0;
+	uint8_t padding = 0;
 	if (allsize > 8) {
     padding = 8 - (allsize % 8);
 	} else {
     padding = 8 - allsize;
 	}
-	printf("padding : %d\n",padding);
+	// printf("padding : %d\n",padding);
+	// printf("before rsp : %p\n",_if.rsp);
+	_if.rsp -= padding;
+	// printf("after rsp : %p\n",_if.rsp);
 
-	_if.R.rsi = &argv[0];
-	_if.R.rdi = argc;
+	// argv 맨 마지막 시작점 0값
+	_if.rsp -= 8;
+	memset(_if.rsp , 0 , sizeof(char *));
+	// printf("zero point : %p\n",_if.rsp);
+
+	// 주소
+	for (int i = argc; i >= 0; i--){
+		_if.rsp -= 8;
+		memcpy(_if.rsp, &stack_ptrs[i], 8);
+		//printf("memcpy -> argv[%d] address : %p / now here : %p, &address : %p , size : %d ,\n",i,stack_ptrs[i],_if.rsp,&stack_ptrs[i], sizeof(char **));
+	}
+	
+	// return add는 따로 빼야된다고 해서 따로 빼 줌
+	_if.rsp -= 8;
+	memset(_if.rsp , 0 , 8);
+
+	_if.R.rdi = argc + 1;
+	_if.R.rsi = _if.rsp + 8;
+	//printf("rdi/rsi : %d , %p\n", _if.R.rdi , _if.R.rsi);
+
+	//hex_dump(_if.rsp, _if.rsp, KERN_BASE - _if.rsp, true);
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	if (!success)
 		return -1;
-	
+
 	/* Start switched process. */
 	do_iret (&_if);
 	NOT_REACHED ();
 }
-
 
 /* Waits for thread TID to die and returns its exit status.  If
  * it was terminated by the kernel (i.e. killed due to an
@@ -248,7 +283,7 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
-	while(1){}
+	timer_sleep(10);
 	return -1;
 }
 
@@ -381,7 +416,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	process_activate (thread_current());
 
 	/* Open executable file. */
-	file = filesys_open (thread_current ()->name);
+	file = filesys_open (file_name);
 	if (file == NULL) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
