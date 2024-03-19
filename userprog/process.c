@@ -43,7 +43,7 @@ tid_t
 process_create_initd (const char *file_name) {
 	char *fn_copy;
 	tid_t tid;
-
+	// bin/ls foo bar
 	/* Make a copy of FILE_NAME.
 	 * Otherwise there's a race between the caller and load(). */
 	fn_copy = palloc_get_page (0);
@@ -303,9 +303,6 @@ process_exit (void) {
 	 * TODO: We recommend you to implement process resource cleanup here. */
 
 	process_cleanup ();
-
-	// printf ("%s: exit(%d)\n", thread_current()->name , 0);
-	// thread_exit();
 }
 
 /* Free the current process's resources. */

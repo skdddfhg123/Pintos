@@ -8,6 +8,10 @@
 #include "threads/flags.h"
 #include "intrinsic.h"
 
+#include "filesys/filesys.h"
+#include "userprog/process.h"
+
+
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 
@@ -55,9 +59,32 @@ syscall_handler (struct intr_frame *f UNUSED) {
 
 	if (f->R.rax){
 		if (f->R.rax == SYS_EXIT){
-			printf("%s: exit(0)\n",thread_current()->name);
+			printf("%s: exit(%d)\n", thread_current()->name , f->R.rdi);
 			thread_exit();
 		}
+
+		if (f->R.rax == SYS_CREATE){
+
+			if (f->R.rdi == NULL){
+				// exit(-1)이랑 같음
+				printf("%s: exit(%d)\n", thread_current()->name , -1);
+				thread_exit();
+			}
+			filesys_create(f->R.rdi, f->R.rsi);
+		}
+
+		if (f->R.rax == SYS_REMOVE){
+			filesys_remove(f->R.rdi);
+		}
+
+		if (f->R.rax == SYS_OPEN){
+			filesys_open(f->R.rdi);
+		}
+
+		if (f->R.rax == SYS_READ){
+			
+		}
+
 		if (f->R.rax == SYS_WRITE){
 			putbuf(f->R.rsi,f->R.rdx);
 		}
