@@ -51,7 +51,6 @@ unsigned	tell (int fd);
 
 static struct lock read_lock;
 static struct lock write_lock;
-static struct lock create_lock;
 
 void
 syscall_init (void) {
@@ -66,7 +65,6 @@ syscall_init (void) {
 			FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
 	lock_init(&read_lock);
 	lock_init(&write_lock);
-	lock_init(&create_lock);
 }
 
 
@@ -181,9 +179,7 @@ void exit (int status)  {
 }
 
 bool create (const char *file, unsigned initial_size) {
-	// lock_acquire(&create_lock);
 	bool ret = filesys_create(file, initial_size) != NULL ? true : false;
-	// lock_release(&create_lock);
 	return ret;
 }
 

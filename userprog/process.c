@@ -103,7 +103,8 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	if (is_kernel_vaddr(va))
 		return true;
 	/* 2. Resolve VA from the parent's page map level 4. */
-	parent_page = pml4_get_page (parent->pml4, va);
+	if ((parent_page = pml4_get_page (parent->pml4, va)) == NULL)
+		return false;
 
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
 	 *    TODO: NEWPAGE. */
@@ -180,7 +181,9 @@ __do_fork (void *aux) {
 		do_iret (&if_);
 	}
 error:
-	thread_exit ();
+	sema_up(&parent->fork_sema);
+	exit(-1);
+	// thread_exit ();
 }
 
 /* Switch the current execution context to the f_name.
@@ -199,11 +202,9 @@ process_exec (void *f_name) {
 	_if.eflags = FLAG_IF | FLAG_MBS;
 
 	/* We first kill the current context */
-	// printf("1111\n");
 	process_cleanup ();
 	/* And then load the binary */
 	success = load (file_name, &_if);
-	// printf("!!\n");
 	// logic start
 	if (success) {
 		char token, *save_ptr;
@@ -226,7 +227,6 @@ process_exec (void *f_name) {
 		}
 		int64_t arg_ptr[argc];
 
-		// printf("_if.rsp %x\n", _if.rsp);
 		for (int i = argc - 1; i >= 0; i--) {
 			_if.rsp -= (strlen(arg_list[i]) + 1);
 			arg_ptr[i] = _if.rsp;
@@ -254,7 +254,6 @@ process_exec (void *f_name) {
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	if (!success) {
-
 		return -1;
 	}
 	// hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint64_t)_if.rsp, true); // user stack을 16진수로 프린트
@@ -273,12 +272,9 @@ int process_wait (tid_t child_tid) {
 
 	for (e = list_begin(&cur->child_list); e != list_end(&cur->child_list); e = list_next(e)) {
 		struct thread *temp = list_entry (e, struct thread, child_elem);
-		if (temp->tid == child_tid) {
+		if (temp->tid == child_tid && temp->is_wait != true) {
 			child = temp;
-			// if (temp->exit_status != ALREADY_WAIT) {
-			// 	cur->is_wait = true;
-			// 	temp->exit_status = ALREADY_WAIT;
-			// }
+			temp->is_wait = true;
 		}
 	}
 	if (child == NULL)
@@ -299,8 +295,12 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
+	for (int i = 2; i < 64; i++) {
+		if (curr->fd_t[i])
+			file_close(curr->fd_t[i]);
+	}
 	sema_up(&curr->wait_sema);
-	// file_close(&curr->run_file);
+	file_close(curr->run_file);
 	sema_down(&curr->exit_sema);
 	process_cleanup ();
 }
@@ -422,11 +422,9 @@ load (const char *file_name, struct intr_frame *if_) {
 		goto done;
 	process_activate (thread_current ());
 	/* Open executable file. */
-	strlcpy(file_cp, file_name, 127);
+	strlcpy(file_cp, file_name, 128);
 	strtok_r(file_cp, " ", &save_ptr);
 	file = filesys_open (file_cp);
-	// t->run_file = file;
-	// file_deny_write(file);
 	if (file == NULL) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
@@ -496,7 +494,6 @@ load (const char *file_name, struct intr_frame *if_) {
 				break;
 		}
 	}
-
 	/* Set up stack. */
 	if (!setup_stack (if_))
 		goto done;
@@ -506,6 +503,8 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
+	t->run_file = file;
+	file_deny_write(file);
 
 	success = true;
 

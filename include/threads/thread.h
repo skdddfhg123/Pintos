@@ -125,9 +125,9 @@ struct thread {
 	struct semaphore	exit_sema;
 
 	int					exit_status;     /* exit_status */
-	bool				is_wait;
+	bool				is_wait;         
 
-	struct file			*run_file;
+	struct file			*run_file;       
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t 			*pml4;           /* Page map level 4 */
