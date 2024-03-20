@@ -10,5 +10,6 @@ test_main (void)
   int handle;
   CHECK ((handle = open ("sample.txt")) > 1, "open \"sample.txt\"");
   msg ("close \"sample.txt\"");
+  // printf("%d\n", handle);
   close (handle);
 }

@@ -105,6 +105,34 @@ kill (struct intr_frame *f) {
 	}
 }
 
+/* get_user 함수는 사용자 가상 주소(uaddr)에서 바이트를 읽고 
+ * 성공하면 바이트 값을 반환하고, 
+ * segmetation fault가 발생하면 -1을 반환합니다. */
+static int64_t
+get_user (const uint8_t *uaddr) {
+	int64_t result;
+	__asm __volatile (
+	"movabsq $done_get, %0\n"
+	"movzbq %1, %0\n"
+	"done_get:\n"
+	: "=&a" (result) : "m" (*uaddr));
+	return result;
+}
+
+/* UDST must be below KERN_BASE.
+ * 사용자 주소(udst)에 바이트(byte)를 쓰고 
+ * 성공하면 true를 반환하고 분할 오류가 발생하면 false를 반환합니다. */
+static bool
+put_user (uint8_t *udst, uint8_t byte) {
+	int64_t error_code;
+	__asm __volatile (
+	"movabsq $done_put, %0\n"
+	"movb %b2, %1\n"
+	"done_put:\n"
+	: "=&a" (error_code), "=m" (*udst) : "q" (byte));
+	return error_code != -1;
+}
+
 /* Page fault handler.  This is a skeleton that must be filled in
    to implement virtual memory.  Some solutions to project 2 may
    also require modifying this code.
@@ -155,6 +183,7 @@ page_fault (struct intr_frame *f) {
 			not_present ? "not present" : "rights violation",
 			write ? "writing" : "reading",
 			user ? "user" : "kernel");
+	exit(-1);
 	kill (f);
 }
 

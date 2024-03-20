@@ -191,8 +191,8 @@ thread_print_stats (void) {
    Priority scheduling is the goal of Problem 1-3. */
 tid_t
 thread_create (const char *name, int priority,
-		thread_func *function, void *aux) {
-	struct thread *t;
+	thread_func *function, void *aux) {
+	struct thread *t, *par = thread_current();
 	tid_t tid;
 
 	ASSERT (function != NULL);
@@ -206,6 +206,10 @@ thread_create (const char *name, int priority,
 	init_thread (t, name, priority);
 	tid = t->tid = allocate_tid ();
 
+	// if ((struct thread *)aux == par)
+	// 	t->parent = par;
+	list_push_back(&par->child_list, &t->child_elem);
+	t->parent = par;
 	/* Call the kernel_thread if it scheduled.
 	 * Note) rdi is 1st argument, and rsi is 2nd argument. */
 	t->tf.rip = (uintptr_t) kernel_thread;
@@ -224,8 +228,8 @@ thread_create (const char *name, int priority,
 		and the newly inserted one.
 		Yield the CPU if the newly arriving thread has higher priority.
 	 */
-	if (thread_get_priority() < priority)
-		thread_yield(); 
+	if (thread_get_priority() <= priority)
+		thread_yield();
 
 	return tid;
 }
@@ -532,6 +536,18 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->nice = 0;
 	t->recent_cpu = 0;
 	list_push_back(&all_list, &t->all_elem);
+	/* file descriptor */
+	t->fd = 3;
+	memset(t->fd_t, 0, sizeof(struct file *) * 64);
+	/* fork */
+	list_init(&(t->child_list));
+	/* sema */
+	sema_init(&t->wait_sema, 0);
+	sema_init(&t->exit_sema, 0);
+	sema_init(&t->fork_sema, 0);
+	t->is_wait = false;
+	t->exit_status = ALIVE_CHILD;
+	t->run_file = NULL;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
