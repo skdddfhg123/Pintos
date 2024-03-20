@@ -230,6 +230,15 @@ thread_create (const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
+	t->fdt = palloc_get_multiple(PAL_ZERO, 3);
+	if (t->fdt == NULL){
+		return TID_ERROR;
+	}
+
+	t->file_index = 2;
+	t->fdt[0] = 1;
+	t->fdt[1] = 2;
+
 	/* Add to run queue. */
 	thread_unblock (t);
 	thread_priority();
