@@ -296,6 +296,7 @@ inode_deny_write (struct inode *inode)
 	ASSERT (inode->deny_write_cnt <= inode->open_cnt);
 }
 
+#include <stdio.h>
 /* Re-enables writes to INODE.
  * Must be called once by each inode opener who has called
  * inode_deny_write() on the inode, before closing the inode. */

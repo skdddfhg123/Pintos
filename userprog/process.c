@@ -42,6 +42,7 @@ tid_t
 process_create_initd (const char *file_name) {
 	char *fn_copy;
 	tid_t tid;
+	char *token, *save_ptr;
 
 	/* Make a copy of FILE_NAME.
 	 * Otherwise there's a race between the caller and load(). */
@@ -50,8 +51,9 @@ process_create_initd (const char *file_name) {
 		return TID_ERROR;
 	strlcpy (fn_copy, file_name, PGSIZE);
 
+	token = strtok_r(file_name, " ", &save_ptr);
 	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
+	tid = thread_create (token, PRI_DEFAULT, initd, fn_copy);
 	if (tid == TID_ERROR)
 		palloc_free_page (fn_copy);
 	return tid;
@@ -63,7 +65,7 @@ initd (void *f_name) {
 #ifdef VM
 	supplemental_page_table_init (&thread_current ()->spt);
 #endif
-
+	
 	process_init ();
 
 	if (process_exec (f_name) < 0)
@@ -74,10 +76,16 @@ initd (void *f_name) {
 /* Clones the current process as `name`. Returns the new process's thread id, or
  * TID_ERROR if the thread cannot be created. */
 tid_t
-process_fork (const char *name, struct intr_frame *if_ UNUSED) {
+process_fork (const char *name, struct intr_frame *if_) {
 	/* Clone current thread to new thread.*/
-	return thread_create (name,
-			PRI_DEFAULT, __do_fork, thread_current ());
+	struct thread	*parent = thread_current();
+	tid_t			tid;
+
+	tid = thread_create (name, PRI_DEFAULT, __do_fork, parent);
+	if (tid == TID_ERROR)
+		return TID_ERROR;
+	sema_down(&parent->fork_sema);
+	return tid;
 }
 
 #ifndef VM
@@ -92,21 +100,28 @@ duplicate_pte (uint64_t *pte, void *va, void *aux) {
 	bool writable;
 
 	/* 1. TODO: If the parent_page is kernel page, then return immediately. */
-
+	if (is_kernel_vaddr(va))
+		return true;
 	/* 2. Resolve VA from the parent's page map level 4. */
-	parent_page = pml4_get_page (parent->pml4, va);
+	if ((parent_page = pml4_get_page (parent->pml4, va)) == NULL)
+		return false;
 
 	/* 3. TODO: Allocate new PAL_USER page for the child and set result to
 	 *    TODO: NEWPAGE. */
+	if ((newpage = palloc_get_page(PAL_USER | PAL_ZERO)) == NULL)
+		return false;
 
 	/* 4. TODO: Duplicate parent's page to the new page and
 	 *    TODO: check whether parent's page is writable or not (set WRITABLE
 	 *    TODO: according to the result). */
-
+	memcpy(newpage, parent_page, PGSIZE);
+	writable = is_writable(pte);
 	/* 5. Add new page to child's page table at address VA with WRITABLE
 	 *    permission. */
 	if (!pml4_set_page (current->pml4, va, newpage, writable)) {
 		/* 6. TODO: if fail to insert page, do error handling. */
+		palloc_free_page(newpage);
+		return false;
 	}
 	return true;
 }
@@ -126,7 +141,8 @@ __do_fork (void *aux) {
 	bool succ = true;
 
 	/* 1. Read the cpu context to local stack. */
-	memcpy (&if_, parent_if, sizeof (struct intr_frame));
+	memcpy (&if_, &parent->intr_f, sizeof (struct intr_frame));
+	// memcpy (&current->tf, &parent->intr_f, sizeof (struct intr_frame));
 
 	/* 2. Duplicate PT */
 	current->pml4 = pml4_create();
@@ -148,14 +164,26 @@ __do_fork (void *aux) {
 	 * TODO:       in include/filesys/file.h. Note that parent should not return
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
+	for (int i = 3; i < 64; i++) {
+		if (parent->fd_t[i]) {
+			current->fd_t[i] = file_duplicate(parent->fd_t[i]);
+		}
+	}
 
+	// list_push_back(&parent->child_list, &current->child_elem);
+	// current->parent = parent;
+
+	sema_up(&parent->fork_sema);
 	process_init ();
-
 	/* Finally, switch to the newly created process. */
-	if (succ)
+	if (succ) {
+		if_.R.rax = 0;
 		do_iret (&if_);
+	}
 error:
-	thread_exit ();
+	sema_up(&parent->fork_sema);
+	exit(-1);
+	// thread_exit ();
 }
 
 /* Switch the current execution context to the f_name.
@@ -175,36 +203,88 @@ process_exec (void *f_name) {
 
 	/* We first kill the current context */
 	process_cleanup ();
-
 	/* And then load the binary */
 	success = load (file_name, &_if);
+	// logic start
+	if (success) {
+		char token, *save_ptr;
+		int argc = 1;
+		int total_size = 0;
 
+		for (int i = 0; file_name[i] != '\0'; i++) {
+			if (file_name[i] == ' ' && file_name[i + 1] != ' ') {
+				argc++;
+			}
+		}
+		char *arg_list[argc];
+
+		arg_list[0] = strtok_r(file_name, " ", &save_ptr);
+		total_size += strlen(arg_list[0]) + 1;
+
+		for (int i = 1; i < argc; i++) {
+			arg_list[i] = strtok_r(NULL, " ", &save_ptr);
+			total_size += strlen(arg_list[i]) + 1;
+		}
+		int64_t arg_ptr[argc];
+
+		for (int i = argc - 1; i >= 0; i--) {
+			_if.rsp -= (strlen(arg_list[i]) + 1);
+			arg_ptr[i] = _if.rsp;
+			memcpy(_if.rsp, arg_list[i], strlen(arg_list[i])+ 1);
+			arg_list[i] = _if.rsp;
+		}
+		if (total_size%8) {
+			_if.rsp -= (8 - total_size%8);
+			memset(_if.rsp, 0, 8 - total_size%8);
+		}
+
+		_if.rsp -= 8;
+
+		memset(_if.rsp, 0, sizeof(uint8_t));
+		for (int i = argc - 1; i >= 0; i--) {
+			_if.rsp -= 8;
+			memcpy(_if.rsp, &arg_ptr[i], sizeof(char *));
+		}
+		_if.rsp -= 8;
+		memset(_if.rsp, 0, sizeof(void (*)));
+
+		_if.R.rdi = argc;
+		_if.R.rsi = _if.rsp + 8;
+	}
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
-	if (!success)
+	if (!success) {
 		return -1;
-
+	}
+	// hex_dump(_if.rsp, _if.rsp, USER_STACK - (uint64_t)_if.rsp, true); // user stack을 16진수로 프린트
 	/* Start switched process. */
+
 	do_iret (&_if);
 	NOT_REACHED ();
 }
 
 
-/* Waits for thread TID to die and returns its exit status.  If
- * it was terminated by the kernel (i.e. killed due to an
- * exception), returns -1.  If TID is invalid or if it was not a
- * child of the calling process, or if process_wait() has already
- * been successfully called for the given TID, returns -1
- * immediately, without waiting.
- *
- * This function will be implemented in problem 2-2.  For now, it
- * does nothing. */
-int
-process_wait (tid_t child_tid UNUSED) {
-	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
-	 * XXX:       to add infinite loop here before
-	 * XXX:       implementing the process_wait. */
-	return -1;
+int process_wait (tid_t child_tid) {
+	struct thread 		*cur = thread_current();
+	struct thread 		*child = NULL;
+	int					ret = -1;
+	struct list_elem 	*e;
+
+	for (e = list_begin(&cur->child_list); e != list_end(&cur->child_list); e = list_next(e)) {
+		struct thread *temp = list_entry (e, struct thread, child_elem);
+		if (temp->tid == child_tid && temp->is_wait != true) {
+			child = temp;
+			temp->is_wait = true;
+		}
+	}
+	if (child == NULL)
+		return -1;
+	sema_down(&child->wait_sema);
+	ret = child->exit_status;
+	list_remove(&child->child_elem);
+	sema_up(&child->exit_sema);
+
+	return ret;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
@@ -215,7 +295,13 @@ process_exit (void) {
 	 * TODO: Implement process termination message (see
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
-
+	for (int i = 2; i < 64; i++) {
+		if (curr->fd_t[i])
+			file_close(curr->fd_t[i]);
+	}
+	sema_up(&curr->wait_sema);
+	file_close(curr->run_file);
+	sema_down(&curr->exit_sema);
 	process_cleanup ();
 }
 
@@ -328,20 +414,22 @@ load (const char *file_name, struct intr_frame *if_) {
 	off_t file_ofs;
 	bool success = false;
 	int i;
+	char file_cp[128];
+	char *save_ptr;
 
-	/* Allocate and activate page directory. */
 	t->pml4 = pml4_create ();
 	if (t->pml4 == NULL)
 		goto done;
 	process_activate (thread_current ());
-
 	/* Open executable file. */
-	file = filesys_open (file_name);
+	strlcpy(file_cp, file_name, 128);
+	strtok_r(file_cp, " ", &save_ptr);
+	file = filesys_open (file_cp);
 	if (file == NULL) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
-
+	
 	/* Read and verify executable header. */
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
 			|| memcmp (ehdr.e_ident, "\177ELF\2\1\1", 7)
@@ -406,7 +494,6 @@ load (const char *file_name, struct intr_frame *if_) {
 				break;
 		}
 	}
-
 	/* Set up stack. */
 	if (!setup_stack (if_))
 		goto done;
@@ -416,12 +503,14 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
+	t->run_file = file;
+	file_deny_write(file);
 
 	success = true;
 
 done:
 	/* We arrive here whether the load is successful or not. */
-	file_close (file);
+	// file_close (file);
 	return success;
 }
 
