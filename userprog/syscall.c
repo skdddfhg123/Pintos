@@ -12,13 +12,29 @@
 #include "userprog/process.h"
 #include "filesys/file.h"
 #include "threads/synch.h"
+#include "lib/kernel/console.h"
 
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 
+void check_address(void *addr);
+void half(void);
+void exit(int status);
+tid_t fork (const char *thread_name,struct intr_frame *f);
+int exec (const char *cmd_line);
+int wait (tid_t pid);
+bool create(const char *file, unsigned initial_size);
+bool remove(const char *file);
+int open (const char *file);
+int filesize (int fd);
+int read (int fd, void *buffer, unsigned size);
+int write (int fd, const void *buffer, unsigned size) ;
+void seek (int fd, unsigned position);
+unsigned tell (int fd);
+void close (int fd);
+
 int filesize(int fd);
-void exiting(int status);
 void putbuf(const char * buffer, size_t n);
 void checkadd(int file);
 int to_fdt(struct file * file);
@@ -53,30 +69,9 @@ syscall_init (void) {
 	lock_init(&syslock);
 }
 
-int filesize(int fd){
-	struct file * file = to_fdt(fd);
-	if (fd == NULL) {
-		return -1;
-	}
-	file_length(fd);
-}
-
-void exiting(int status){
-	thread_current()->exit = status;
-	printf("%s: exit(%d)\n", thread_current()->name , status);
-	thread_exit();
-}
-
-// void putbuf(const char * buffer, size_t n){
-// 	acquire_console ();
-// 		while (n-- > 0)
-// 	putchar_have_lock (*buffer++);
-// 	release_console ();
-// }
-
 void checkadd(int file){
 	if (file == NULL || !(is_user_vaddr(file)) ||pml4_get_page(thread_current()->pml4, file) == NULL){
-	exiting(-1);
+	exit(-1);
 	}
 }
 
@@ -84,6 +79,10 @@ int to_fdt(struct file * file){
 	struct thread * t = thread_current();
 	struct file ** fdt = t -> fdt;
 	int fd = t->file_index;
+
+	while (t->file_index < FDT_COUNT_LIMIT && fdt[t->file_index]){
+		t->file_index++;
+	}
 
 	while (t->fdt[fd] != NULL && fd < 129){
 		fd ++;
@@ -97,108 +96,144 @@ int to_fdt(struct file * file){
 	return fd;
 }
 
+struct file * fd_to_file(int fd){
+	if (fd < 0 || fd >= 129) {
+		return NULL;
+	}
+	
+	struct thread *t = thread_current();
+	struct file ** fdt = t->fdt;
+	
+	struct file * file = fdt[fd];
+	return file;
+}
+
 /* The main system call interface */
 void
 syscall_handler (struct intr_frame *f UNUSED) {
-	// TODO: Your implementation goes here.
-	// switch (f->R.rax) //syscall number
-	// {
-	// case SYS_EXIT:
-	// 	printf("%s: exit(0)\n",thread_current()->name);
-	// 	thread_exit();
-	// 	break;
-	// case SYS_WRITE:
-	// 	putbuf(f->R.rsi,f->R.rdx);
-	// default:
-	// 	break;
-	// }
-
-	// if문보다 switch문(O(N))이 더 빠르긴 하지만 원리는 비슷함
+	uint64_t sys_number = f->R.rax;
 	
-	if (f->R.rax){
-		if (f->R.rax == SYS_EXIT){
-			exiting(f->R.rdi);
+    switch (sys_number)
+    {
+		// case SYS_HALT:
+		// 		halt();
+		// 		break;
+		case SYS_EXIT:
+				exit(f->R.rdi); //
+				break;
+		// case SYS_FORK:
+		// 		f->R.rax = fork(f->R.rdi, f); 
+		// 		break;
+		// case SYS_EXEC:
+		// 		exec(f->R.rdi);
+		// 		break;
+		// case SYS_WAIT:
+		// 		f->R.rax = wait(f->R.rdi);
+		// 		break;
+		case SYS_CREATE:
+				f->R.rax = create(f->R.rdi, f->R.rsi);
+				break;
+		// case SYS_REMOVE:
+		// 		f->R.rax = remove(f->R.rdi);
+		// 		break;
+		case SYS_OPEN:
+				f->R.rax = open(f->R.rdi);
+				break;
+		case SYS_FILESIZE:
+				f->R.rax = filesize(f->R.rdi);
+				break;
+		case SYS_READ:
+				f->R.rax = read(f->R.rdi, f->R.rsi, f->R.rdx);
+				break;
+		case SYS_WRITE:
+				f->R.rax = write(f->R.rdi, f->R.rsi, f->R.rdx);
+				break;
+		// case SYS_SEEK:
+		// 		seek(f->R.rdi, f->R.rsi);
+		// 		break;
+		// case SYS_TELL:
+		// 		f->R.rax = tell(f->R.rdi);
+		// 		break;
+		// case SYS_CLOSE:
+		// 		close(f->R.rdi);
+		// 		break; 
+		default:
+			exit(-1);
+			break;
 		}
+}
+	
+void exit(int status){
+	thread_current()->exit = status;
+	printf("%s: exit(%d)\n", thread_current()->name , status);
+	thread_exit();
+}
 
-		if (f->R.rax == SYS_CREATE){
-			checkadd(f->R.rdi);
-			f->R.rax = filesys_create(f->R.rdi, f->R.rsi);
-		}
+bool create(const char *file, unsigned initial_size) {
+	checkadd(file);
+	return filesys_create(file, initial_size);
+}
 
-		if (f->R.rax == SYS_READ){
-			// 버퍼 맨 처음 부분 검사
-			checkadd(f->R.rsi);
-			// 버퍼 맨 끝 부분 검사
-			checkadd(f->R.rsi + f->R.rdx -1);
-			// rdi : fd / rsi : * buffer / rdx : size
-			// 구현
-			
-			// 우선 fd를 받아서 해당 파일을 가르키는 구조체를 반환시켜야 함.
-			struct file * file = to_fdt(f->R.rdi);
-			int read_count = 0;
-			unsigned char * buffer = f->R.rsi;
-			int * size = f->R.rdx;
-
-			if (file == NULL){
-				f->R.rax = -1;
-			}
-
-			// 만약 fd가 0이라면, input_getc()를 사용해서 키보드에서 읽음
-			if (f->R.rdi == STDIN_FILENO){
-				char key;
-				while (read_count < size){
-					key = input_getc();
-					*buffer++ = key;
-					if (key == '\0'){
-						break;
-					}
-					read_count ++;
-				}
-			}
-			// 만약 fd가 1이라면, STDOUT을 의미하기 때문에 -1을 반환하게 됨
-			else if (f->R.rdi == STDOUT_FILENO){
-				f->R.rax = -1;
-			}
-
-			else {
-				lock_acquire(&syslock);
-				read_count = file_read(file, buffer , size);
-				lock_release(&syslock);
-			}
-
-			if (f->R.rax != -1){
-				f->R.rax = read_count;
-			}
-		}
-
-		if (f->R.rax == SYS_OPEN){
-			checkadd(f->R.rdi);
-
-			struct file * file = filesys_open(f->R.rdi);	
-			// thread의 file descripter table에 추가
-			// 이거 안 하면 read/write 안 됨(testcase보면 read안에서 open을 call 함)
-			if (file == NULL){
-				f->R.rax = -1;
-			}
-			int fd = to_fdt(file);
-
-			if (fd == -1){
-				file_close(file);
-			}
-			// rax에 file_open에서 나온 값을 추가
-			if (f->R.rax != -1){
-				f->R.rax = fd;
-			}
-		}
-
-		if (f->R.rax == SYS_WRITE){
-			if (f->R.rdi = STDOUT_FILENO)
-				putbuf(f->R.rsi, f->R.rdx);
-			f->R.rax = f->R.rdx;
-		}
-
-		else{
-			return;
-		}
+int open (const char *file){
+	checkadd(file);
+	struct file * filefd = filesys_open(file);	
+	// thread의 file descripter table에 추가
+	// 이거 안 하면 read/write 안 됨(testcase보면 read안에서 open을 call 함)
+	if (filefd == NULL){
+		return -1;
 	}
+	int fd = to_fdt(filefd);
+
+	if (fd == -1){
+		file_close(filefd);
+	}
+	// rax에 file_open에서 나온 값을 추가
+	return fd;
+}
+
+int filesize(int fd){
+	struct file * file = to_fdt(fd);
+	if (file == NULL) {
+		return -1;
+	}
+	file_length(fd);
+}
+
+int read (int fd, void *buffer, unsigned size) {
+	checkadd(buffer);
+	// 버퍼 맨 끝 부분 검사
+	checkadd(buffer + size -1);
+	struct file * file = to_fdt(fd);
+	int read_count;
+	if (fd == STDOUT_FILENO){
+		putbuf(buffer, size);
+		read_count = size;
+	}
+
+	else if (fd == STDIN_FILENO){
+		return -1;
+	}
+	else{
+		lock_acquire(&syslock);
+		read_count = file_write(file, buffer, size);
+		lock_release(&syslock);
+	}
+}
+
+int write (int fd, const void *buffer, unsigned size){
+	lock_acquire(&syslock);
+	if(fd == STDOUT_FILENO){
+		 putbuf(buffer, size);
+		lock_release(&syslock);
+		return size;
+	}
+	struct file * file = fd_to_file(fd);
+	if(file == NULL){
+		lock_release(&syslock);
+		return -1;
+	}
+	
+	size = file_write(file,buffer,size);
+	lock_release(&syslock);
+	return size;
 }
