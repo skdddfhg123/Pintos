@@ -36,7 +36,7 @@ void close (int fd);
 
 int filesize(int fd);
 void putbuf(const char * buffer, size_t n);
-void checkadd(int file);
+void checkadd(void * file);
 int to_fdt(struct file * file);
 
 struct lock syslock;
@@ -69,7 +69,7 @@ syscall_init (void) {
 	lock_init(&syslock);
 }
 
-void checkadd(int file){
+void checkadd(void * file){
 	if (file == NULL || !(is_user_vaddr(file)) ||pml4_get_page(thread_current()->pml4, file) == NULL){
 	exit(-1);
 	}
@@ -115,9 +115,9 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	
     switch (sys_number)
     {
-		// case SYS_HALT:
-		// 		halt();
-		// 		break;
+		case SYS_HALT:
+				halt();
+				break;
 		case SYS_EXIT:
 				exit(f->R.rdi); //
 				break;
@@ -162,6 +162,10 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			break;
 		}
 }
+
+void halt(void) {
+    power_off();
+}
 	
 void exit(int status){
 	thread_current()->exit = status;
@@ -200,24 +204,16 @@ int filesize(int fd){
 }
 
 int read (int fd, void *buffer, unsigned size) {
-	checkadd(buffer);
-	// 버퍼 맨 끝 부분 검사
-	checkadd(buffer + size -1);
-	struct file * file = to_fdt(fd);
-	int read_count;
-	if (fd == STDOUT_FILENO){
-		putbuf(buffer, size);
-		read_count = size;
-	}
-
-	else if (fd == STDIN_FILENO){
-		return -1;
-	}
-	else{
-		lock_acquire(&syslock);
-		read_count = file_write(file, buffer, size);
+	lock_acquire(&syslock);
+	if(fd == 0){
+		input_getc();
 		lock_release(&syslock);
+		return size;
 	}
+  	struct file *fileobj= fd_to_file(fd);
+	size = file_read(fileobj,buffer,size);
+	lock_release(&syslock);	
+	return size;
 }
 
 int write (int fd, const void *buffer, unsigned size){
@@ -236,4 +232,10 @@ int write (int fd, const void *buffer, unsigned size){
 	size = file_write(file,buffer,size);
 	lock_release(&syslock);
 	return size;
+}
+
+void close (int fd) {
+	/* 해당 파일 디스크립터에 해당하는 파일을 닫음 */
+	struct thread * t = thread_current();
+	t->fdt[fd] = 0; /* 파일 디스크립터 엔트리 초기화 */
 }
